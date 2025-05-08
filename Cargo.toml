@@ -1,0 +1,13 @@
+[package]
+name = "auto-play"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+image = "0.25.6"
+rustautogui = "2.5.0"
+windows = { version = "0.61.1", features = []}
+windows-capture = "1.4.3"
+xcap = "0.5.1"
+# [workspace]
+# members = ["packages/*"]
