@@ -1,4 +1,4 @@
-use crate::adb::{utils::read_payload_to_string, AdbTcpStream, DeviceInfo, error::AdbResult};
+use crate::{utils::read_payload_to_string, AdbTcpStream, DeviceInfo, error::AdbResult};
 
 use super::AdbCommand;
 
@@ -78,7 +78,7 @@ impl AdbCommand for Transport {
 
 #[cfg(test)]
 mod test {
-    use crate::adb::host;
+    use crate::host;
 
     use super::*;
 

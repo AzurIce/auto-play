@@ -115,7 +115,7 @@ impl Host {
 
 #[cfg(test)]
 mod test {
-    use crate::adb::command::local_service::ShellCommand;
+    use crate::command::local_service::ShellCommand;
 
     use super::*;
 

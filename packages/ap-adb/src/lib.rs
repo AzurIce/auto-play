@@ -241,7 +241,7 @@ mod test {
     use std::time::Instant;
 
     use super::*;
-    use crate::adb::command::local_service;
+    use crate::command::local_service;
 
     #[test]
     fn test_connect() -> AdbResult<()> {

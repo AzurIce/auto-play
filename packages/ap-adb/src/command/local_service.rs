@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use crate::adb::{
-    utils::{read_to_end, read_to_end_to_string},
+use crate::{
     AdbTcpStream,
     error::AdbResult,
+    utils::{read_to_end, read_to_end_to_string},
 };
 
 use super::AdbCommand;
@@ -90,7 +90,7 @@ impl AdbCommand for InputSwipe {
 
 #[cfg(test)]
 mod test {
-    use crate::adb::host;
+    use crate::host;
 
     use super::{ScreenCap, ShellCommand};
 
