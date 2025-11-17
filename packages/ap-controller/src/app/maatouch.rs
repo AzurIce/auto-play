@@ -1,6 +1,6 @@
 use std::{
     io::{BufRead, Write},
-    process::{ChildStdin, Command, Stdio},
+    process::{Child, ChildStdin, Command, Stdio},
     thread::{self, sleep},
     time::Duration,
 };
@@ -8,7 +8,7 @@ use std::{
 use anyhow::Context;
 use color_print::cformat;
 use tempfile::NamedTempFile;
-use tracing::info;
+use tracing::{debug, info, trace};
 
 use ap_adb::{Device, command::local_service::ShellCommand, utils::execute_adb_command};
 
@@ -23,22 +23,24 @@ pub enum Direction {
     Right,
 }
 
-enum Cmd {
-    Stop,
-}
-
 /// After initialized, hold a child-stdin to write commands to maatouch
 /// If disconnected during using, it should be reconstructed
 pub struct MaaTouch {
-    maatouch_stdin: ChildStdin,
+    child: Child,
+    child_in: ChildStdin,
     state: MaaTouchState,
-
-    cmd_tx: async_channel::Sender<Cmd>,
+    // cmd_tx: async_channel::Sender<Cmd>,
 }
 
 impl Drop for MaaTouch {
     fn drop(&mut self) {
-        self.cmd_tx.send_blocking(Cmd::Stop).unwrap();
+        // Note that the commands are not done immediately, it will take some time to execute.
+        // Before that we should not drop the controller, or the maatouch process will be killed.
+        //
+        // Ideally, maatouch should accept a "q" command to quit, and we wait for the process to quit here.
+        // Now we just wait for a short time to ensure the commands are executed.
+        thread::sleep(Duration::from_millis(100));
+        self.child.kill().unwrap()
     }
 }
 
@@ -134,7 +136,7 @@ impl App for MaaTouch {
             "{}",
             cformat!("<dim>[Minitouch]: spawning maatouch...</dim>")
         );
-        let mut maatouch_child = Command::new("adb")
+        let mut child = Command::new("adb")
             .args(vec![
                 "-s",
                 device.serial().as_str(),
@@ -142,25 +144,25 @@ impl App for MaaTouch {
                 "app_process -Djava.class.path=/data/local/tmp/maatouch /data/local/tmp com.shxyke.MaaTouch.App",
             ])
             .stdin(Stdio::piped())
-            // .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
             .spawn()
             .context("failed to spawn maatouch")?;
         sleep(Duration::from_secs_f32(0.5));
 
-        let child_in = maatouch_child
+        let child_in = child
             .stdin
             .take()
             .ok_or(anyhow::anyhow!("cannot get stdin of maatouch"))?;
-        let child_out = maatouch_child
-            .stderr
+        let child_out = child
+            .stdout
             .take()
             .ok_or(anyhow::anyhow!("cannot get stdout of maatouch"))?;
 
-        let (cmd_tx, cmd_rx) = async_channel::unbounded::<Cmd>();
+        // let (cmd_tx, cmd_rx) = async_channel::unbounded::<Cmd>();
 
-        let mut maatouch_state = MaaTouchState::default();
+        let mut state = MaaTouchState::default();
         // read info
+        debug!("reading maatouch info...");
         let mut reader = std::io::BufReader::new(child_out);
         loop {
             let mut buf = String::new();
@@ -173,6 +175,7 @@ impl App for MaaTouch {
                     anyhow::bail!("failed to read maatouch info: {}", err);
                 }
                 Ok(sz) => {
+                    trace!("readed {sz} len: {buf:?}");
                     if sz == 0 {
                         // println!("readed Ok(0)");
                         continue;
@@ -198,7 +201,7 @@ impl App for MaaTouch {
                             (max_size2, max_size1)
                         };
 
-                        maatouch_state = MaaTouchState {
+                        state = MaaTouchState {
                             flip_xy,
                             max_contact,
                             max_x,
@@ -228,26 +231,14 @@ impl App for MaaTouch {
             }
         }
 
-        thread::spawn(move || {
-            let cmd_rx = cmd_rx;
-
-            loop {
-                thread::sleep(Duration::from_millis(50));
-                if let Ok(cmd) = cmd_rx.try_recv() {
-                    match cmd {
-                        Cmd::Stop => break,
-                    };
-                }
-            }
-        });
         info!(
             "{}",
             cformat!("<dim>[Minitouch]: maatouch initialized</dim>")
         );
         Ok(MaaTouch {
-            maatouch_stdin: child_in,
-            state: maatouch_state,
-            cmd_tx,
+            child,
+            child_in,
+            state,
         })
     }
 }
@@ -257,12 +248,12 @@ const CLICK_DELAY_MS: u32 = 50;
 
 impl MaaTouch {
     fn write_command(&mut self, command: &str) -> anyhow::Result<()> {
-        println!("writing command: {:?}", command);
+        trace!("[MaaTouch]: writing command {:?}", command);
         let mut command = command.to_string();
         if !command.ends_with('\n') {
             command.push('\n');
         }
-        self.maatouch_stdin
+        self.child_in
             .write_all(command.as_bytes())
             .context("failed to write command")
     }
@@ -302,10 +293,13 @@ impl MaaTouch {
     }
 
     pub fn wait(&mut self, duration: Duration) -> anyhow::Result<()> {
-        self.write_command(format!("w {}", duration.as_millis()).as_str())
+        // self.write_command(format!("w {}", duration.as_millis()).as_str())
+        thread::sleep(duration);
+        Ok(())
     }
 
     pub fn click(&mut self, x: u32, y: u32) -> anyhow::Result<()> {
+        debug!("[MaaTouch/click]: click at {x},{y}");
         self.down(0, x, y, self.state.max_pressure)?;
         self.commit()?;
         self.wait(Duration::from_millis(CLICK_DELAY_MS as u64))?;
@@ -322,7 +316,7 @@ impl MaaTouch {
         slope_in: f32,
         slope_out: f32,
     ) -> anyhow::Result<()> {
-        println!("{start:?} {end:?}");
+        debug!("[MaaTouch/swipe]: swipe from {start:?} to {end:?} for {duration:?} with slope in/out {slope_in}/{slope_out}");
         self.down(0, start.0, start.1, self.state.max_pressure)?;
         self.commit()?;
 
@@ -341,10 +335,10 @@ impl MaaTouch {
                 cubic_spline(slope_in, slope_out, t as f32 / duration.as_millis() as f32);
             let progress = progress.min(1.0).max(0.0);
             // info!("{}", progress);
-            println!("{progress}");
+            // println!("{progress}");
             let cur_x = lerp(start.0 as f32, end.0 as f32, progress) as i32;
             let cur_y = lerp(start.1 as f32, end.1 as f32, progress) as i32;
-            println!("{cur_x} {cur_y}");
+            // println!("{cur_x} {cur_y}");
             self.mv(0, cur_x as i32, cur_y as i32, self.state.max_pressure)?;
             self.commit()?;
             self.wait(Duration::from_millis(SWIPE_DELAY_MS as u64))?;
@@ -364,25 +358,15 @@ impl MaaTouch {
 
 #[cfg(test)]
 mod test {
+    use crate::tests::init_tracing_subscriber;
     use ap_adb::connect;
-    use tracing_subscriber::EnvFilter;
 
     use super::*;
 
-    fn init() {
-        let _ = tracing_subscriber::fmt::Subscriber::builder()
-            .with_env_filter(
-                EnvFilter::builder()
-                    .with_default_directive("TRACE".parse().unwrap())
-                    .from_env()
-                    .unwrap(),
-            )
-            .init();
-    }
-
     #[test]
     fn test_maatoucher() {
-        init();
+        init_tracing_subscriber();
+
         info!("test_maatoucher");
         // mumu
         let device = connect("127.0.0.1:16384").unwrap();
@@ -401,7 +385,7 @@ mod test {
 
     #[test]
     fn test_slowly_swipe() {
-        init();
+        init_tracing_subscriber();
         // let device = connect("127.0.0.1:16384").unwrap();
         let device = connect("emulator-5554").unwrap();
         let mut toucher = MaaTouch::init(&device).unwrap();

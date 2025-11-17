@@ -192,6 +192,7 @@ impl Device {
     //     Ok((screen.width(), screen.height()))
     // }
 
+    /// Get the raw screencap data in bytes
     pub fn raw_screencap(&self) -> AdbResult<Vec<u8>> {
         // let bytes = self
         //     .execute_command_by_process("exec-out screencap -p")
@@ -205,6 +206,7 @@ impl Device {
         Ok(bytes)
     }
 
+    /// Get the decoded screencap image
     pub fn screencap(&self) -> AdbResult<image::DynamicImage> {
         let bytes = self.raw_screencap()?;
 

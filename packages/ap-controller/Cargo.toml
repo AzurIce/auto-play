@@ -9,6 +9,8 @@ anyhow.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 color-print.workspace = true
+image.workspace = true
+rand = "0.9.2"
 
 async-channel = "2.5.0"
 tempfile = "3.23.0"

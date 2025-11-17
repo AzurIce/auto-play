@@ -8,10 +8,13 @@ members = ["packages/*"]
 
 [workspace.dependencies]
 ap-adb = { path = "packages/ap-adb" }
+ap-controller = { path = "packages/ap-controller" }
 image = "0.25.9"
 tracing = "0.1.41"
+anyhow = "1.0.100"
 thiserror = "2.0.17"
 tracing-subscriber = "0.3.20"
+color-print = "0.3.7"
 
 [dependencies]
 ap-adb.workspace = true
