@@ -1,0 +1,17 @@
+[package]
+name = "ap-controller"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ap-adb.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+color-print.workspace = true
+
+async-channel = "2.5.0"
+tempfile = "3.23.0"
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
