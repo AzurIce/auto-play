@@ -1,4 +1,4 @@
 /target
 *.mp4
-*.png
 .direnv
+output
