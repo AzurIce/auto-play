@@ -1,3 +1,4 @@
-pub mod template_matching;
+pub mod core;
+pub mod matcher;
 pub mod gpu;
 pub mod utils;

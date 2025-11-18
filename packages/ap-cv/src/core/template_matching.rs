@@ -1,18 +1,9 @@
-//! Image matching based on template matching
+//! Template matching implementation based on compute shader through wgpu.
 //!
-//! SingleMatcher: Match one template on an image to get one result.
-//! MultiMatcher: Match one template on an image to get multiple results.
-//! BestMatcher: Match one template on many images to get the best one.
-
-pub struct MatchOptions {
-    template: image::DynamicImage,
-}
-
-pub struct SingleMatcher {}
-
+//! Currently only supports grayscale image.
 use std::{
     fmt::Display,
-    sync::{Arc, LazyLock, Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 #[cfg(feature = "profiling")]
@@ -22,8 +13,8 @@ use wgpu_profiler::{GpuProfiler, GpuProfilerSettings};
 // Since the timing information we get from WGPU may be several frames behind the CPU, we can't report these frames to
 // the singleton returned by `puffin::GlobalProfiler::lock`. Instead, we need our own `puffin::GlobalProfiler` that we
 // can be several frames behind puffin's main global profiler singleton.
-static PUFFIN_GPU_PROFILER: LazyLock<Mutex<puffin::GlobalProfiler>> =
-    LazyLock::new(|| Mutex::new(puffin::GlobalProfiler::default()));
+static PUFFIN_GPU_PROFILER: std::sync::LazyLock<Mutex<puffin::GlobalProfiler>> =
+    std::sync::LazyLock::new(|| Mutex::new(puffin::GlobalProfiler::default()));
 
 use bytemuck::{Pod, Zeroable};
 use image::{ImageBuffer, Luma};
@@ -244,7 +235,8 @@ impl Matcher {
             mapped_at_creation: false,
         });
 
-        let shader_module = device.create_shader_module(include_wgsl!("./shader.wgsl"));
+        let shader_module =
+            device.create_shader_module(include_wgsl!("../../shaders/template_matching.wgsl"));
         let pipeline_ccorr = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Cross Correlation Pipeline"),
             layout: Some(&pipeline_layout),
@@ -671,18 +663,11 @@ fn prepare_buffer_init_with_image(
 }
 
 #[cfg(test)]
-mod test {
-    use image::DynamicImage;
-
+mod tests {
     use crate::utils::save_luma32f;
 
     use super::*;
-    use std::{
-        error::Error,
-        fs,
-        path::{Path, PathBuf},
-        time::Instant,
-    };
+    use std::{error::Error, fs, path::PathBuf, time::Instant};
 
     #[test]
     fn foo() -> Result<(), Box<dyn Error>> {
@@ -733,10 +718,22 @@ mod test {
     fn test_template_matching() -> Result<(), Box<dyn Error>> {
         init_profiling();
 
-        let images = ["in_battle", "1-4_deploying", "1-4_deploying_direction"]
-            .map(|name| (name, image::open(format!("./assets/{name}.png")).unwrap()));
-        let templates = ["battle_deploy-card-cost1", "battle_pause"]
-            .map(|name| (name, image::open(format!("./assets/{name}.png")).unwrap()));
+        let images = ["in_battle", "1-4_deploying", "1-4_deploying_direction"].map(|name| {
+            (
+                name,
+                image::open(format!("./assets/{name}.png"))
+                    .unwrap()
+                    .to_luma32f(),
+            )
+        });
+        let templates = ["battle_deploy-card-cost1", "battle_pause"].map(|name| {
+            (
+                name,
+                image::open(format!("./assets/{name}.png"))
+                    .unwrap()
+                    .to_luma32f(),
+            )
+        });
 
         for template in templates {
             test_matching_all_methods(&template, &images)?;
@@ -745,8 +742,8 @@ mod test {
     }
 
     fn test_matching_all_methods(
-        template: &(&str, DynamicImage),
-        images: &[(&str, DynamicImage)],
+        template: &(&str, ImageBuffer<Luma<f32>, Vec<f32>>),
+        images: &[(&str, ImageBuffer<Luma<f32>, Vec<f32>>)],
     ) -> Result<(), Box<dyn Error>> {
         let (template_name, template) = template;
         let dir = PathBuf::from(format!("./assets/output/{template_name}"));
@@ -766,13 +763,8 @@ mod test {
             for (name, image) in images.iter() {
                 println!("matching using {}...", method);
                 let t = Instant::now();
-                let image = image.to_luma32f();
-                let template = template.clone().to_luma32f();
-                println!("convert to luma32f cost: {:?}", t.elapsed());
-                let t_match_begin = Instant::now();
                 let res = match_template(&image, &template, method, false);
-                println!("match cost: {:?}", t_match_begin.elapsed());
-                println!("total cost: {:?}", t.elapsed());
+                println!("cost: {:?}", t.elapsed());
                 save_luma32f(
                     &res,
                     method_dir.join(format!("{name}-ap_cv.png")),
