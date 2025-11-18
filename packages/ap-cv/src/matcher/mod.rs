@@ -10,9 +10,9 @@ use imageproc::template_matching::find_extremes;
 use crate::core::template_matching::{Match, MatchTemplateMethod, find_matches, match_template};
 
 pub struct MatcherOptions {
-    method: MatchTemplateMethod,
-    threshold: f32,
-    padding: bool,
+    pub method: MatchTemplateMethod,
+    pub threshold: f32,
+    pub padding: bool,
 }
 
 impl Default for MatcherOptions {
