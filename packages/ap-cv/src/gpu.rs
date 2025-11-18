@@ -22,8 +22,18 @@ impl Context {
             .await
             .unwrap();
 
+        #[cfg(feature = "profiling")]
+        let descriptor = wgpu::DeviceDescriptor {
+            required_features: adapter.features()
+                & wgpu_profiler::GpuProfiler::ALL_WGPU_TIMER_FEATURES,
+            ..Default::default()
+        };
+
+        #[cfg(not(feature = "profiling"))]
+        let descriptor = wgpu::DeviceDescriptor::default();
+
         let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor::default())
+            .request_device(&descriptor)
             .await
             .unwrap();
 

@@ -12,15 +12,24 @@ pub struct SingleMatcher {}
 
 use std::{
     fmt::Display,
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, LazyLock, Mutex, OnceLock},
 };
+
+#[cfg(feature = "profiling")]
+use wgpu_profiler::{GpuProfiler, GpuProfilerSettings};
+
+#[cfg(feature = "profiling")]
+// Since the timing information we get from WGPU may be several frames behind the CPU, we can't report these frames to
+// the singleton returned by `puffin::GlobalProfiler::lock`. Instead, we need our own `puffin::GlobalProfiler` that we
+// can be several frames behind puffin's main global profiler singleton.
+static PUFFIN_GPU_PROFILER: LazyLock<Mutex<puffin::GlobalProfiler>> =
+    LazyLock::new(|| Mutex::new(puffin::GlobalProfiler::default()));
 
 use bytemuck::{Pod, Zeroable};
 use image::{ImageBuffer, Luma};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupLayoutDescriptor, BufferDescriptor, BufferUsages,
-    CommandEncoderDescriptor, ComputePassDescriptor, PipelineLayoutDescriptor, include_wgsl,
-    util::DeviceExt,
+    CommandEncoderDescriptor, PipelineLayoutDescriptor, include_wgsl, util::DeviceExt,
 };
 
 use crate::gpu::Context;
@@ -158,6 +167,9 @@ struct Matcher {
     pipeline_sqdiff_normed: wgpu::ComputePipeline,
     pipeline_ccoeff: wgpu::ComputePipeline,
     pipeline_ccoeff_normed: wgpu::ComputePipeline,
+
+    #[cfg(feature = "profiling")]
+    profiler: GpuProfiler,
 }
 
 impl Matcher {
@@ -290,6 +302,10 @@ impl Matcher {
                 cache: None,
             });
 
+        #[cfg(feature = "profiling")]
+        let profiler = GpuProfiler::new(&ctx.device, GpuProfilerSettings::default())
+            .expect("Failed to create profiler");
+
         Matcher {
             ctx,
             input_buffer: None,
@@ -306,6 +322,8 @@ impl Matcher {
             pipeline_sqdiff_normed,
             pipeline_ccoeff,
             pipeline_ccoeff_normed,
+            #[cfg(feature = "profiling")]
+            profiler,
         }
     }
 
@@ -349,6 +367,8 @@ impl Matcher {
         match_method: MatchTemplateMethod,
         padding: bool,
     ) -> ImageBuffer<Luma<f32>, Vec<f32>> {
+        profiling::scope!("match_template");
+
         let (image, template) = if matches!(
             match_method,
             MatchTemplateMethod::CorrelationCoefficient
@@ -425,37 +445,42 @@ impl Matcher {
         let result_buf_sz = (result_w * result_h * size_of::<f32>() as u32) as u64;
 
         // update buffers
-        let update = [
-            prepare_buffer_init_with_image(
-                &self.ctx,
-                &mut self.input_buffer,
-                image,
-                wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            ),
-            prepare_buffer_init_with_image(
-                &self.ctx,
-                &mut self.template_buffer,
-                template,
-                BufferUsages::STORAGE | BufferUsages::COPY_DST,
-            ),
-            prepare_buffer_init_with_size(
-                &self.ctx,
-                &mut self.result_buffer,
-                result_buf_sz,
-                BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
-            ),
-            prepare_buffer_init_with_size(
-                &self.ctx,
-                &mut self.staging_buffer,
-                result_buf_sz,
-                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            ),
-        ]
-        .iter()
-        .any(|x| *x);
+        let update = {
+            profiling::scope!("update buffers");
+
+            [
+                prepare_buffer_init_with_image(
+                    &self.ctx,
+                    &mut self.input_buffer,
+                    image,
+                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                ),
+                prepare_buffer_init_with_image(
+                    &self.ctx,
+                    &mut self.template_buffer,
+                    template,
+                    BufferUsages::STORAGE | BufferUsages::COPY_DST,
+                ),
+                prepare_buffer_init_with_size(
+                    &self.ctx,
+                    &mut self.result_buffer,
+                    result_buf_sz,
+                    BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
+                ),
+                prepare_buffer_init_with_size(
+                    &self.ctx,
+                    &mut self.staging_buffer,
+                    result_buf_sz,
+                    BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+                ),
+            ]
+            .iter()
+            .any(|x| *x)
+        };
 
         // update bind_group and uniforms
         if update {
+            profiling::scope!("update bind_group and uniforms");
             self.bind_group = Some(self.create_new_bind_group());
             // let template_sq_sum = template.as_raw().iter().map(|x| x * x).sum::<f32>();
             let uniforms = Uniforms {
@@ -470,17 +495,8 @@ impl Matcher {
                 .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
         }
 
-        let mut encoder = self
-            .ctx
-            .device
-            .create_command_encoder(&CommandEncoderDescriptor {
-                label: Some("encoder"),
-            });
-        {
-            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some("compute pass"),
-                timestamp_writes: None,
-            });
+        // Helper function to execute compute pass logic
+        let encode_compute_pass = |pass: &mut wgpu::ComputePass<'_>| {
             pass.set_pipeline(match match_method {
                 MatchTemplateMethod::CrossCorrelation => &self.pipeline_ccorr,
                 MatchTemplateMethod::CrossCorrelationNormed => &self.pipeline_ccorr_normed,
@@ -495,43 +511,115 @@ impl Matcher {
                 (result_h as f32 / 8.0).ceil() as u32,
                 1,
             );
-        }
-        encoder.copy_buffer_to_buffer(
-            self.result_buffer.as_ref().unwrap(),
-            0,
-            self.staging_buffer.as_ref().unwrap(),
-            0,
-            result_buf_sz,
-        );
+        };
 
-        self.ctx.queue.submit(std::iter::once(encoder.finish()));
-
-        // get output
-        let buffer_slice = self.staging_buffer.as_ref().unwrap().slice(..);
-        let (sender, receiver) = async_channel::bounded(1);
-        buffer_slice.map_async(wgpu::MapMode::Read, move |v| sender.try_send(v).unwrap());
-
-        self.ctx
+        let mut encoder = self
+            .ctx
             .device
-            .poll(wgpu::PollType::wait_indefinitely())
-            .unwrap();
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("encoder"),
+            });
 
-        pollster::block_on(async {
-            let result;
+        {
+            #[cfg(feature = "profiling")]
+            let scope_label = format!("match_template_{}", match_method);
+            #[cfg(feature = "profiling")]
+            let mut scope = self.profiler.scope(&scope_label, &mut encoder);
 
-            if let Ok(()) = receiver.try_recv().unwrap() {
-                let data = buffer_slice.get_mapped_range();
-                result = bytemuck::cast_slice(&data).to_vec();
-                drop(data);
-                self.staging_buffer.as_ref().unwrap().unmap();
-            } else {
-                result = vec![0.0; (result_w * result_h) as usize]
-            };
+            {
+                let mut pass = {
+                    #[cfg(feature = "profiling")]
+                    {
+                        scope.scoped_compute_pass("compute pass")
+                    }
+                    #[cfg(not(feature = "profiling"))]
+                    {
+                        encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                            label: Some("compute pass"),
+                            timestamp_writes: None,
+                        })
+                    }
+                };
+                encode_compute_pass(&mut pass);
+            }
 
-            let res = ImageBuffer::from_vec(result_w, result_h, result).unwrap();
+            // Copy buffer
+            #[cfg(feature = "profiling")]
+            {
+                scope.recorder.copy_buffer_to_buffer(
+                    self.result_buffer.as_ref().unwrap(),
+                    0,
+                    self.staging_buffer.as_ref().unwrap(),
+                    0,
+                    result_buf_sz,
+                );
+            }
 
-            res
-        })
+            #[cfg(not(feature = "profiling"))]
+            {
+                encoder.copy_buffer_to_buffer(
+                    self.result_buffer.as_ref().unwrap(),
+                    0,
+                    self.staging_buffer.as_ref().unwrap(),
+                    0,
+                    result_buf_sz,
+                );
+            }
+        }
+
+        #[cfg(feature = "profiling")]
+        self.profiler.resolve_queries(&mut encoder);
+
+        {
+            profiling::scope!("submit encoder");
+            self.ctx.queue.submit(Some(encoder.finish()));
+        }
+
+        #[cfg(feature = "profiling")]
+        {
+            self.profiler.end_frame().unwrap();
+            // Query for oldest finished frame and report to puffin
+            if let Some(results) = self
+                .profiler
+                .process_finished_frame(self.ctx.queue.get_timestamp_period())
+            {
+                let mut gpu_profiler = PUFFIN_GPU_PROFILER.lock().unwrap();
+                wgpu_profiler::puffin::output_frame_to_puffin(&mut gpu_profiler, &results);
+                gpu_profiler.new_frame();
+            }
+        }
+
+        let res = {
+            profiling::scope!("get output");
+            // get output
+            let buffer_slice = self.staging_buffer.as_ref().unwrap().slice(..);
+            let (sender, receiver) = async_channel::bounded(1);
+            buffer_slice.map_async(wgpu::MapMode::Read, move |v| sender.try_send(v).unwrap());
+
+            self.ctx
+                .device
+                .poll(wgpu::PollType::wait_indefinitely())
+                .unwrap();
+
+            pollster::block_on(async {
+                let result;
+
+                if let Ok(()) = receiver.try_recv().unwrap() {
+                    let data = buffer_slice.get_mapped_range();
+                    result = bytemuck::cast_slice(&data).to_vec();
+                    drop(data);
+                    self.staging_buffer.as_ref().unwrap().unmap();
+                } else {
+                    result = vec![0.0; (result_w * result_h) as usize]
+                };
+
+                let res = ImageBuffer::from_vec(result_w, result_h, result).unwrap();
+
+                res
+            })
+        };
+        profiling::finish_frame!();
+        res
     }
 }
 
@@ -621,8 +709,30 @@ mod test {
         Ok(())
     }
 
+    fn init_profiling() {
+        #[cfg(feature = "profiling")]
+        {
+            let _cpu_server =
+                puffin_http::Server::new(&format!("0.0.0.0:{}", puffin_http::DEFAULT_PORT))
+                    .unwrap();
+            let _gpu_server = puffin_http::Server::new_custom(
+                &format!("0.0.0.0:{}", puffin_http::DEFAULT_PORT + 1),
+                |sink| super::PUFFIN_GPU_PROFILER.lock().unwrap().add_sink(sink),
+                |id| {
+                    _ = super::PUFFIN_GPU_PROFILER.lock().unwrap().remove_sink(id);
+                },
+            )
+            .unwrap();
+            Box::leak(Box::new(_cpu_server));
+            Box::leak(Box::new(_gpu_server));
+            puffin::set_scopes_on(true);
+        }
+    }
+
     #[test]
     fn test_template_matching() -> Result<(), Box<dyn Error>> {
+        init_profiling();
+
         let images = ["in_battle", "1-4_deploying", "1-4_deploying_direction"]
             .map(|name| (name, image::open(format!("./assets/{name}.png")).unwrap()));
         let templates = ["battle_deploy-card-cost1", "battle_pause"]
@@ -656,9 +766,13 @@ mod test {
             for (name, image) in images.iter() {
                 println!("matching using {}...", method);
                 let t = Instant::now();
-                let res =
-                    match_template(&image.to_luma32f(), &template.to_luma32f(), method, false);
-                println!("cost: {:?}", t.elapsed());
+                let image = image.to_luma32f();
+                let template = template.clone().to_luma32f();
+                println!("convert to luma32f cost: {:?}", t.elapsed());
+                let t_match_begin = Instant::now();
+                let res = match_template(&image, &template, method, false);
+                println!("match cost: {:?}", t_match_begin.elapsed());
+                println!("total cost: {:?}", t.elapsed());
                 save_luma32f(
                     &res,
                     method_dir.join(format!("{name}-ap_cv.png")),

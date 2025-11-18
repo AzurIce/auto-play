@@ -3,11 +3,24 @@ name = "ap-cv"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+profiling = [
+    "wgpu-profiler",
+    "puffin",
+    "puffin_http",
+    "profiling/profile-with-puffin",
+]
+
 [dependencies]
 tracing.workspace = true
 image.workspace = true
 imageproc.workspace = true
 async-channel.workspace = true
+
+profiling = "1.0.17"
+wgpu-profiler = { version = "0.25.0", features = ["puffin"], optional = true }
+puffin = { version = "0.19.1", optional = true }
+puffin_http = { version = "0.16.1", optional = true }
 
 criterion.workspace = true
 wgpu = "27.0.1"
