@@ -31,6 +31,8 @@ pub struct Match {
     pub value: f32,
 }
 
+pub use imageproc::template_matching::find_extremes;
+
 pub fn find_matches(
     input: &ImageBuffer<Luma<f32>, Vec<f32>>,
     template_width: u32,
@@ -40,36 +42,30 @@ pub fn find_matches(
 ) -> Vec<Match> {
     let mut matches: Vec<Match> = Vec::new();
 
-    let input_width = input.width();
-    let input_height = input.height();
-
-    for y in 0..input_height {
-        for x in 0..input_width {
-            let value = input.get_pixel(x, y).0[0];
-
-            if is_x_more_match_than_y(value, threshold, method) {
-                if let Some(m) = matches.iter_mut().rev().find(|m| {
-                    ((m.location.0 as i32 - x as i32).abs() as u32) < template_width
-                        && ((m.location.1 as i32 - y as i32).abs() as u32) < template_height
-                }) {
-                    if is_x_more_match_than_y(value, m.value, method) {
-                        m.location = (x, y);
-                        m.value = value;
-                    }
-                    continue;
-                } else {
-                    matches.push(Match {
-                        location: (x, y),
-                        value,
-                    });
+    for (x, y, p) in input.enumerate_pixels() {
+        let value = p.0[0];
+        if is_a_more_match_than_b(value, threshold, method) {
+            if let Some(m) = matches.iter_mut().rev().find(|m| {
+                ((m.location.0 as i32 - x as i32).abs() as u32) < template_width
+                    && ((m.location.1 as i32 - y as i32).abs() as u32) < template_height
+            }) {
+                if is_a_more_match_than_b(value, m.value, method) {
+                    m.location = (x, y);
+                    m.value = value;
                 }
+                continue;
+            } else {
+                matches.push(Match {
+                    location: (x, y),
+                    value,
+                });
             }
         }
     }
 
     // sort matches by value (is_x_more_match_than_y)
     matches.sort_by(|a, b| {
-        if is_x_more_match_than_y(a.value, b.value, method) {
+        if is_a_more_match_than_b(a.value, b.value, method) {
             std::cmp::Ordering::Less
         } else {
             std::cmp::Ordering::Greater
@@ -79,15 +75,15 @@ pub fn find_matches(
     matches
 }
 
-pub fn is_x_more_match_than_y(x: f32, y: f32, method: MatchTemplateMethod) -> bool {
+pub fn is_a_more_match_than_b(a: f32, b: f32, method: MatchTemplateMethod) -> bool {
     if matches!(
         method,
         MatchTemplateMethod::SumOfSquaredDifference
             | MatchTemplateMethod::SumOfSquaredDifferenceNormed
     ) {
-        return x < y;
+        return a < b;
     } else {
-        return x > y;
+        return a > b;
     };
 }
 
@@ -99,6 +95,17 @@ pub enum MatchTemplateMethod {
     CrossCorrelationNormed,
     CorrelationCoefficient,
     CorrelationCoefficientNormed,
+}
+
+impl MatchTemplateMethod {
+    pub const ALL: [MatchTemplateMethod; 6] = [
+        MatchTemplateMethod::SumOfSquaredDifference,
+        MatchTemplateMethod::SumOfSquaredDifferenceNormed,
+        MatchTemplateMethod::CrossCorrelation,
+        MatchTemplateMethod::CrossCorrelationNormed,
+        MatchTemplateMethod::CorrelationCoefficient,
+        MatchTemplateMethod::CorrelationCoefficientNormed,
+    ];
 }
 
 impl Display for MatchTemplateMethod {
@@ -669,30 +676,30 @@ mod tests {
     use super::*;
     use std::{error::Error, fs, path::PathBuf, time::Instant};
 
-    #[test]
-    fn foo() -> Result<(), Box<dyn Error>> {
-        let image = image::open("./assets/in_battle.png")?;
-        let template = image::open("./assets/battle_deploy-card-cost1.png")?;
-        fs::create_dir_all("./assets/output")?;
+    // #[test]
+    // fn foo() -> Result<(), Box<dyn Error>> {
+    //     let image = image::open("./assets/in_battle.png")?;
+    //     let template = image::open("./assets/battle_deploy-card-cost1.png")?;
+    //     fs::create_dir_all("./assets/output")?;
 
-        let image = image.to_luma32f();
-        save_luma32f(&image, "./assets/output/grey.png", false);
-        let image = ImageBuffer::from_fn(image.width(), image.height(), |x, y| {
-            let mut sum = 0.0;
-            let mut cnt = 0;
-            for i in x..(x + template.width()).min(image.width()) {
-                for j in y..(y + template.height()).min(image.height()) {
-                    sum += image.get_pixel(i, j).0[0];
-                    cnt += 1;
-                }
-            }
-            // println!("{sum}/{cnt}");
-            // println!("{} {}", image.get_pixel(x, y).0[0], sum / cnt as f32);
-            Luma([(sum / cnt as f32)])
-        });
-        save_luma32f(&image, "./assets/output/avg.png", false);
-        Ok(())
-    }
+    //     let image = image.to_luma32f();
+    //     save_luma32f(&image, "./assets/output/grey.png", false);
+    //     let image = ImageBuffer::from_fn(image.width(), image.height(), |x, y| {
+    //         let mut sum = 0.0;
+    //         let mut cnt = 0;
+    //         for i in x..(x + template.width()).min(image.width()) {
+    //             for j in y..(y + template.height()).min(image.height()) {
+    //                 sum += image.get_pixel(i, j).0[0];
+    //                 cnt += 1;
+    //             }
+    //         }
+    //         // println!("{sum}/{cnt}");
+    //         // println!("{} {}", image.get_pixel(x, y).0[0], sum / cnt as f32);
+    //         Luma([(sum / cnt as f32)])
+    //     });
+    //     save_luma32f(&image, "./assets/output/avg.png", false);
+    //     Ok(())
+    // }
 
     fn init_profiling() {
         #[cfg(feature = "profiling")]
@@ -712,6 +719,39 @@ mod tests {
             Box::leak(Box::new(_gpu_server));
             puffin::set_scopes_on(true);
         }
+    }
+
+    #[test]
+    fn foo() -> Result<(), Box<dyn Error>> {
+        let angel= image::open("./assets/avatars/angel_sale#8.png")?.to_luma32f();
+        let kalts = image::open("./assets/avatars/kalts.png")?.to_luma32f();
+
+        let res = match_template(
+            &angel,
+            &kalts,
+            MatchTemplateMethod::CrossCorrelation,
+            false,
+        );
+        println!("{:?}", res.get_pixel(0, 0));
+        let res = match_template(
+            &kalts,
+            &kalts,
+            MatchTemplateMethod::CrossCorrelation,
+            false,
+        );
+        println!("{:?}", res.get_pixel(0, 0));
+
+        let image = image::open("./assets/in_battle.png")?.to_luma32f();
+        let res = match_template(
+            &image,
+            &angel,
+            MatchTemplateMethod::CrossCorrelation,
+            false,
+        );
+        save_luma32f(&res, "./assets/output/foo.png", false);
+        let res = find_extremes(&res);
+        println!("{:?}", res);
+        Ok(())
     }
 
     #[test]
