@@ -584,10 +584,17 @@ fn prepare_buffer_init_with_image(
 
 #[cfg(test)]
 mod test {
+    use image::DynamicImage;
+
     use crate::utils::save_luma32f;
 
     use super::*;
-    use std::{error::Error, fs, path::Path, time::Instant};
+    use std::{
+        error::Error,
+        fs,
+        path::{Path, PathBuf},
+        time::Instant,
+    };
 
     #[test]
     fn foo() -> Result<(), Box<dyn Error>> {
@@ -616,48 +623,24 @@ mod test {
 
     #[test]
     fn test_template_matching() -> Result<(), Box<dyn Error>> {
-        let image = image::open("./assets/in_battle.png")?;
-        let template = image::open("./assets/battle_deploy-card-cost1.png")?;
-        fs::create_dir_all("./assets/output")?;
+        let images = ["in_battle", "1-4_deploying", "1-4_deploying_direction"]
+            .map(|name| (name, image::open(format!("./assets/{name}.png")).unwrap()));
+        let templates = ["battle_deploy-card-cost1", "battle_pause"]
+            .map(|name| (name, image::open(format!("./assets/{name}.png")).unwrap()));
 
-        for method in [
-            MatchTemplateMethod::SumOfSquaredDifference,
-            MatchTemplateMethod::SumOfSquaredDifferenceNormed,
-            MatchTemplateMethod::CrossCorrelation,
-            MatchTemplateMethod::CrossCorrelationNormed,
-            MatchTemplateMethod::CorrelationCoefficient,
-            MatchTemplateMethod::CorrelationCoefficientNormed,
-        ] {
-            println!("matching using {}...", method);
-            let t = Instant::now();
-            let res = match_template(&image.to_luma32f(), &template.to_luma32f(), method, false);
-            println!("cost: {:?}", t.elapsed());
-            save_luma32f(
-                &res,
-                format!("./assets/output/{method}.png"),
-                matches!(
-                    method,
-                    MatchTemplateMethod::SumOfSquaredDifference
-                        | MatchTemplateMethod::CrossCorrelation
-                        | MatchTemplateMethod::CorrelationCoefficient
-                ),
-            );
+        for template in templates {
+            test_matching_all_methods(&template, &images)?;
         }
-
         Ok(())
     }
 
-    #[test]
-    fn test_btn_matching() -> Result<(), Box<dyn Error>> {
-        let images = ["in_battle", "1-4_deploying", "1-4_deploying_direction"].map(|name| {
-            (
-                name.to_string(),
-                image::open(format!("./assets/{name}.png")).unwrap(),
-            )
-        });
-        let dir = Path::new("./assets/output/battle_pause");
-        let template = image::open("./assets/battle_pause.png")?;
-        fs::create_dir_all(&dir)?;
+    fn test_matching_all_methods(
+        template: &(&str, DynamicImage),
+        images: &[(&str, DynamicImage)],
+    ) -> Result<(), Box<dyn Error>> {
+        let (template_name, template) = template;
+        let dir = PathBuf::from(format!("./assets/output/{template_name}"));
+        std::fs::create_dir_all(&dir)?;
 
         for method in [
             MatchTemplateMethod::SumOfSquaredDifference,
@@ -667,6 +650,9 @@ mod test {
             MatchTemplateMethod::CorrelationCoefficient,
             MatchTemplateMethod::CorrelationCoefficientNormed,
         ] {
+            let method_dir = dir.join(format!("{}", method));
+            fs::create_dir_all(&method_dir)?;
+
             for (name, image) in images.iter() {
                 println!("matching using {}...", method);
                 let t = Instant::now();
@@ -675,7 +661,7 @@ mod test {
                 println!("cost: {:?}", t.elapsed());
                 save_luma32f(
                     &res,
-                    dir.join(format!("{method}-{name}.png")),
+                    method_dir.join(format!("{name}-ap_cv.png")),
                     matches!(
                         method,
                         MatchTemplateMethod::SumOfSquaredDifference
@@ -685,7 +671,6 @@ mod test {
                 );
             }
         }
-
         Ok(())
     }
 }
