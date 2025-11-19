@@ -17,7 +17,7 @@ static PUFFIN_GPU_PROFILER: std::sync::LazyLock<Mutex<puffin::GlobalProfiler>> =
     std::sync::LazyLock::new(|| Mutex::new(puffin::GlobalProfiler::default()));
 
 use bytemuck::{Pod, Zeroable};
-use image::{ImageBuffer, Luma};
+use image::{ImageBuffer, Luma, math::Rect};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupLayoutDescriptor, BufferDescriptor, BufferUsages,
     CommandEncoderDescriptor, PipelineLayoutDescriptor, include_wgsl, util::DeviceExt,
@@ -27,7 +27,7 @@ use crate::gpu::Context;
 
 #[derive(Clone, Debug)]
 pub struct Match {
-    pub location: (u32, u32),
+    pub rect: Rect,
     pub value: f32,
 }
 
@@ -46,17 +46,23 @@ pub fn find_matches(
         let value = p.0[0];
         if is_a_more_match_than_b(value, threshold, method) {
             if let Some(m) = matches.iter_mut().rev().find(|m| {
-                ((m.location.0 as i32 - x as i32).abs() as u32) < template_width
-                    && ((m.location.1 as i32 - y as i32).abs() as u32) < template_height
+                ((m.rect.x as i32 - x as i32).abs() as u32) < template_width
+                    && ((m.rect.y as i32 - y as i32).abs() as u32) < template_height
             }) {
                 if is_a_more_match_than_b(value, m.value, method) {
-                    m.location = (x, y);
+                    m.rect.x = x;
+                    m.rect.y = y;
                     m.value = value;
                 }
                 continue;
             } else {
                 matches.push(Match {
-                    location: (x, y),
+                    rect: Rect {
+                        x: x,
+                        y: y,
+                        width: template_width,
+                        height: template_height,
+                    },
                     value,
                 });
             }

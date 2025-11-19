@@ -9,6 +9,7 @@ members = ["packages/*"]
 [workspace.dependencies]
 ap-adb = { path = "packages/ap-adb" }
 ap-controller = { path = "packages/ap-controller" }
+ap-cv = { path = "packages/ap-cv" }
 image = "0.25.9"
 imageproc = "0.25.0"
 tracing = "0.1.41"
@@ -22,6 +23,8 @@ criterion = "0.7.0"
 
 [dependencies]
 ap-adb.workspace = true
+ap-controller.workspace = true
+ap-cv.workspace = true
 
 image.workspace = true
 tracing.workspace = true

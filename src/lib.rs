@@ -1,8 +1,5 @@
+use ap_controller::Controller;
 
-pub struct Controller {
-
-}
-
-impl Controller {
-
+pub struct AutoPlay {
+    controller: Controller,
 }

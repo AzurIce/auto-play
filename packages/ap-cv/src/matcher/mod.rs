@@ -4,7 +4,7 @@
 //! [`MultiMatcher`]: Match one template on an image to get multiple results.
 //! [`BestMatcher`]: Match one template on many images to get the best one.
 
-use image::{ImageBuffer, Luma};
+use image::{ImageBuffer, Luma, math::Rect};
 use imageproc::template_matching::find_extremes;
 
 use crate::core::template_matching::{Match, MatchTemplateMethod, find_matches, match_template};
@@ -70,7 +70,12 @@ impl SingleMatcher {
             SumOfSquaredDifference | SumOfSquaredDifferenceNormed => {
                 if extremes.min_value < options.threshold {
                     Some(Match {
-                        location: extremes.min_value_location,
+                        rect: Rect {
+                            x: extremes.min_value_location.0,
+                            y: extremes.min_value_location.1,
+                            width: template.width(),
+                            height: template.height(),
+                        },
                         value: extremes.min_value,
                     })
                 } else {
@@ -83,7 +88,12 @@ impl SingleMatcher {
             | CorrelationCoefficientNormed => {
                 if extremes.max_value > options.threshold {
                     Some(Match {
-                        location: extremes.max_value_location,
+                        rect: Rect {
+                            x: extremes.max_value_location.0,
+                            y: extremes.max_value_location.1,
+                            width: template.width(),
+                            height: template.height(),
+                        },
                         value: extremes.max_value,
                     })
                 } else {

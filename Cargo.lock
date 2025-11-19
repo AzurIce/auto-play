@@ -204,6 +204,8 @@ name = "auto-play"
 version = "0.1.0"
 dependencies = [
  "ap-adb",
+ "ap-controller",
+ "ap-cv",
  "image",
  "thiserror 2.0.17",
  "tracing",
