@@ -133,7 +133,11 @@ impl<T: Load> Deref for GitRepoResource<T> {
 }
 
 impl<T: Load> GitRepoResource<T> {
-    pub fn try_init(target_dir: impl AsRef<Path>, repo_url: impl AsRef<str>, subpath: Option<&str>) -> anyhow::Result<()> {
+    pub fn try_init(
+        target_dir: impl AsRef<Path>,
+        repo_url: impl AsRef<str>,
+        subpath: Option<&str>,
+    ) -> anyhow::Result<()> {
         let subpath = subpath.map(|s| PathBuf::from(s)).unwrap_or(PathBuf::new());
         let repo_url = repo_url.as_ref().to_string();
         let target_dir = target_dir.as_ref();
@@ -160,12 +164,21 @@ impl<T: Load> GitRepoResource<T> {
             let outpath = outpath.components().skip(1).collect::<PathBuf>();
             info!("outpath: {:?}", outpath);
             info!("subpath: {:?}", subpath);
-            info!("outpath.starts_with(&subpath): {:?}", outpath.starts_with(&subpath));
+            info!(
+                "outpath.starts_with(&subpath): {:?}",
+                outpath.starts_with(&subpath)
+            );
             if !outpath.starts_with(&subpath) {
                 continue;
             }
-            info!("subpath.components().count(): {:?}", subpath.components().count());
-            let outpath = outpath.components().skip(subpath.components().count()).collect::<PathBuf>();
+            info!(
+                "subpath.components().count(): {:?}",
+                subpath.components().count()
+            );
+            let outpath = outpath
+                .components()
+                .skip(subpath.components().count())
+                .collect::<PathBuf>();
             let outpath = target_dir.join(outpath);
 
             // {
@@ -355,9 +368,11 @@ mod test {
         init_logger();
 
         let resource = GitRepoResource::<Resource<Action>>::try_load_or_init(
-            "./test/.aah/resources",
-            "https://github.com/AzurIce/aah-resources",
-            None,
+            // "./test/.aah/resources",
+            // "https://github.com/AzurIce/aah-resources",
+            "./test/.ap/resources",
+            "https://github.com/AzurIce/auto-play",
+            Some("test/auto-play-resources"),
         )
         .unwrap();
         println!("{:?}", resource.manifest);
