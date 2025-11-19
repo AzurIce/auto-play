@@ -729,31 +729,16 @@ mod tests {
 
     #[test]
     fn foo() -> Result<(), Box<dyn Error>> {
-        let angel= image::open("./assets/avatars/angel_sale#8.png")?.to_luma32f();
+        let angel = image::open("./assets/avatars/angel_sale#8.png")?.to_luma32f();
         let kalts = image::open("./assets/avatars/kalts.png")?.to_luma32f();
 
-        let res = match_template(
-            &angel,
-            &kalts,
-            MatchTemplateMethod::CrossCorrelation,
-            false,
-        );
+        let res = match_template(&angel, &kalts, MatchTemplateMethod::CrossCorrelation, false);
         println!("{:?}", res.get_pixel(0, 0));
-        let res = match_template(
-            &kalts,
-            &kalts,
-            MatchTemplateMethod::CrossCorrelation,
-            false,
-        );
+        let res = match_template(&kalts, &kalts, MatchTemplateMethod::CrossCorrelation, false);
         println!("{:?}", res.get_pixel(0, 0));
 
         let image = image::open("./assets/in_battle.png")?.to_luma32f();
-        let res = match_template(
-            &image,
-            &angel,
-            MatchTemplateMethod::CrossCorrelation,
-            false,
-        );
+        let res = match_template(&image, &angel, MatchTemplateMethod::CrossCorrelation, false);
         save_luma32f(&res, "./assets/output/foo.png", false);
         let res = find_extremes(&res);
         println!("{:?}", res);

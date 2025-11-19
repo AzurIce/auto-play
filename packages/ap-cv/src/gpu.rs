@@ -32,10 +32,7 @@ impl Context {
         #[cfg(not(feature = "profiling"))]
         let descriptor = wgpu::DeviceDescriptor::default();
 
-        let (device, queue) = adapter
-            .request_device(&descriptor)
-            .await
-            .unwrap();
+        let (device, queue) = adapter.request_device(&descriptor).await.unwrap();
 
         Self {
             instance,

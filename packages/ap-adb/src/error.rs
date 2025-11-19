@@ -58,4 +58,3 @@ pub enum AdbError {
 
 /// ADB result type alias
 pub type AdbResult<T> = Result<T, AdbError>;
-

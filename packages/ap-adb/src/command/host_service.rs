@@ -1,4 +1,4 @@
-use crate::{utils::read_payload_to_string, AdbTcpStream, DeviceInfo, error::AdbResult};
+use crate::{AdbTcpStream, DeviceInfo, error::AdbResult, utils::read_payload_to_string};
 
 use super::AdbCommand;
 

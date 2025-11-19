@@ -21,6 +21,10 @@ pub struct Controller {
 pub const DEFAULT_HEIGHT: u32 = 1080;
 
 impl Controller {
+    pub fn connect(serial: &str) -> anyhow::Result<Self> {
+        let device = ap_adb::connect(serial)?;
+        Self::from_device(device)
+    }
     pub fn from_device(device: ap_adb::Device) -> anyhow::Result<Self> {
         let screen = device.screencap()?;
         let (width, height) = (screen.width(), screen.height());
@@ -227,7 +231,9 @@ mod tests {
 
         let device = ap_adb::connect("127.0.0.1:16384").unwrap();
         let controller = Controller::from_device(device).unwrap();
-        controller.swipe((100, 100), (200, 200), Duration::from_millis(100), 0.5, 0.5).unwrap();
+        controller
+            .swipe((100, 100), (200, 200), Duration::from_millis(100), 0.5, 0.5)
+            .unwrap();
 
         thread::sleep(Duration::from_millis(50));
     }

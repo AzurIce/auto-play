@@ -22,9 +22,7 @@ pub fn execute_adb_command(serial: &str, command: &str) -> AdbResult<Vec<u8>> {
 
 pub fn read_exact<T: Read>(source: &mut T, len: usize) -> AdbResult<Vec<u8>> {
     let mut buf = [0; 65536];
-    source
-        .read_exact(&mut buf[..len])
-        .map_err(AdbError::from)?;
+    source.read_exact(&mut buf[..len]).map_err(AdbError::from)?;
     Ok(buf[..len].to_vec())
 }
 
@@ -36,9 +34,7 @@ pub fn read_exact_to_string<T: Read>(source: &mut T, len: usize) -> AdbResult<St
 
 pub fn read_to_end<T: Read>(source: &mut T) -> AdbResult<Vec<u8>> {
     let mut response = Vec::new();
-    source
-        .read_to_end(&mut response)
-        .map_err(AdbError::from)?;
+    source.read_to_end(&mut response).map_err(AdbError::from)?;
     Ok(response)
 }
 

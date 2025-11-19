@@ -67,10 +67,7 @@ impl Host {
         self.execute_command(DeviceLong::new())
     }
 
-    pub fn execute_command<T>(
-        &mut self,
-        command: impl AdbCommand<Output = T>,
-    ) -> AdbResult<T> {
+    pub fn execute_command<T>(&mut self, command: impl AdbCommand<Output = T>) -> AdbResult<T> {
         // TODO: maybe reconnect every time is a good choice?
         // TODO: no, for transport
         if self.adb_tcp_stream.is_none() {

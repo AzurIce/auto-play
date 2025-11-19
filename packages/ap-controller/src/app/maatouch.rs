@@ -316,7 +316,9 @@ impl MaaTouch {
         slope_in: f32,
         slope_out: f32,
     ) -> anyhow::Result<()> {
-        debug!("[MaaTouch/swipe]: swipe from {start:?} to {end:?} for {duration:?} with slope in/out {slope_in}/{slope_out}");
+        debug!(
+            "[MaaTouch/swipe]: swipe from {start:?} to {end:?} for {duration:?} with slope in/out {slope_in}/{slope_out}"
+        );
         self.down(0, start.0, start.1, self.state.max_pressure)?;
         self.commit()?;
 
