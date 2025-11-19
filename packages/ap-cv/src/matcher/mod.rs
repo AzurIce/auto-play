@@ -56,17 +56,22 @@ impl MatcherOptions {
 /// Match one template on an image to get one result.
 pub struct SingleMatcher;
 
+pub struct SingleMatcherResult {
+    pub result: Option<Match>,
+    pub matched_image: ImageBuffer<Luma<f32>, Vec<f32>>,
+}
+
 impl SingleMatcher {
     pub fn match_template(
         image: &ImageBuffer<Luma<f32>, Vec<f32>>,
         template: &ImageBuffer<Luma<f32>, Vec<f32>>,
         options: &MatcherOptions,
-    ) -> Option<Match> {
+    ) -> SingleMatcherResult {
         use MatchTemplateMethod::*;
 
-        let res = match_template(image, template, options.method, options.padding);
-        let extremes = find_extremes(&res);
-        match options.method {
+        let matched_image = match_template(image, template, options.method, options.padding);
+        let extremes = find_extremes(&matched_image);
+        let result = match options.method {
             SumOfSquaredDifference | SumOfSquaredDifferenceNormed => {
                 if extremes.min_value < options.threshold {
                     Some(Match {
@@ -100,6 +105,10 @@ impl SingleMatcher {
                     None
                 }
             }
+        };
+        SingleMatcherResult {
+            result,
+            matched_image,
         }
     }
 }
@@ -107,18 +116,23 @@ impl SingleMatcher {
 /// Match one template on an image to get multiple results.
 pub struct MultiMatcher;
 
+pub struct MultiMatcherResult {
+    pub result: Vec<Match>,
+    pub matched_image: ImageBuffer<Luma<f32>, Vec<f32>>,
+}
+
 impl MultiMatcher {
     pub fn match_template(
         image: &ImageBuffer<Luma<f32>, Vec<f32>>,
         template: &ImageBuffer<Luma<f32>, Vec<f32>>,
         options: &MatcherOptions,
-    ) -> Vec<Match> {
+    ) -> MultiMatcherResult {
         use MatchTemplateMethod::*;
 
-        let res = match_template(image, template, options.method, options.padding);
+        let matched_image = match_template(image, template, options.method, options.padding);
 
-        find_matches(
-            &res,
+        let result = find_matches(
+            &matched_image,
             template.width(),
             template.height(),
             options.method,
@@ -132,28 +146,46 @@ impl MultiMatcher {
             | CorrelationCoefficient
             | CorrelationCoefficientNormed => m.value > options.threshold,
         })
-        .collect()
+        .collect();
+
+        MultiMatcherResult {
+            result,
+            matched_image,
+        }
     }
 }
 
 pub struct BestMatcher;
+
+pub struct BestMatcherResult {
+    pub result: Option<(usize, Match)>,
+    pub single_results: Vec<SingleMatcherResult>,
+}
 
 impl BestMatcher {
     pub fn match_template<'a, I>(
         images: I,
         template: &ImageBuffer<Luma<f32>, Vec<f32>>,
         options: &MatcherOptions,
-    ) -> Option<(usize, Match)>
+    ) -> BestMatcherResult
     where
         I: IntoIterator<Item = &'a ImageBuffer<Luma<f32>, Vec<f32>>>,
     {
-        images
+        let single_results = images
             .into_iter()
+            .map(|img| SingleMatcher::match_template(img, template, options))
+            .collect::<Vec<_>>();
+
+        let result = single_results
+            .iter()
             .enumerate()
-            .filter_map(|(i, img)| {
-                SingleMatcher::match_template(img, template, options).map(|m| (i, m))
-            })
-            .max_by(|(_, a), (_, b)| a.value.total_cmp(&b.value))
+            .filter_map(|(i, res)| res.result.as_ref().map(|m| (i, *m)))
+            .max_by(|(_, a), (_, b)| a.value.total_cmp(&b.value));
+
+        BestMatcherResult {
+            result,
+            single_results,
+        }
     }
 }
 
@@ -174,7 +206,7 @@ mod tests {
                 &template,
                 &MatcherOptions::method_default(method),
             );
-            println!("Single: {method} - {res:?}");
+            println!("Single: {method} - {:?}", res.result);
             if matches!(
                 method,
                 MatchTemplateMethod::SumOfSquaredDifference
@@ -188,7 +220,7 @@ mod tests {
                 &template,
                 &MatcherOptions::method_default(method),
             );
-            println!("Multi({}): {method} - {res:?}", res.len());
+            println!("Multi({}): {method} - {:?}", res.result.len(), res.result);
         }
     }
 
@@ -214,7 +246,7 @@ mod tests {
                 &template,
                 &MatcherOptions::method_default(method),
             );
-            println!("Best: {method} - {res:?}");
+            println!("Best: {method} - {:?}", res.result);
         }
     }
 }
