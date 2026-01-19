@@ -8,6 +8,7 @@ members = ["packages/*", "auto-play-py"]
 
 [workspace.dependencies]
 auto-play = { path = "." }
+auto-play-py = { path = "auto-play-py" }
 ap-adb = { path = "packages/ap-adb" }
 ap-controller = { path = "packages/ap-controller" }
 ap-cv = { path = "packages/ap-cv" }

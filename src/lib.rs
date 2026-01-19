@@ -32,7 +32,7 @@ impl FooStruct {
     pub fn add(&mut self, value: i32) {
         self.count += value;
     }
-    
+
     pub fn get_count(&self) -> i32 {
         self.count
     }

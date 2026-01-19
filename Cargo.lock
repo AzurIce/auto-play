@@ -209,6 +209,7 @@ name = "auto-play-py"
 version = "0.1.0"
 dependencies = [
  "auto-play",
+ "image",
  "pyo3",
 ]
 
