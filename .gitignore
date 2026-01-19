@@ -3,4 +3,7 @@
 .direnv
 output
 
+__pycache__
+.venv
+test_py
 cap*.png

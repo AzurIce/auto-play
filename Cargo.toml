@@ -3,6 +3,10 @@ name = "auto-play"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "auto_play"
+crate-type = ["rlib", "cdylib"]
+
 [workspace]
 members = ["packages/*"]
 
@@ -19,12 +23,13 @@ tracing-subscriber = "0.3.20"
 color-print = "0.3.7"
 async-channel = "2.5.0"
 criterion = "0.7.0"
+pyo3 = "0.27.2"
 
-[lib]
-name = "auto_play"
-path = "src/lib.rs"
+[build-dependencies]
+pyo3-build-config = "0.27.2"
 
 [dependencies]
+pyo3 = { workspace = true, features = ["extension-module", "abi3-py38"] }
 ap-adb.workspace = true
 ap-controller.workspace = true
 ap-cv.workspace = true

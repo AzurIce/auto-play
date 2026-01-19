@@ -45,7 +45,9 @@
       {
         devShells.default = craneLib.devShell {
           buildInputs = [ ];
-          packages = [ ];
+          packages = with pkgs; [ uv ];
+
+          PYO3_NO_PYTHON = 1;
         };
       }
     );
