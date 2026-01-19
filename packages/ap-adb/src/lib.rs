@@ -10,7 +10,6 @@ use std::{
     time::Duration,
 };
 
-use command::local_service::ShellCommand;
 use image::{DynamicImage, codecs::png::PngDecoder};
 use tracing::{error, trace};
 
@@ -168,19 +167,8 @@ impl Device {
         self.serial.clone()
     }
 
-    pub fn get_abi(&self) -> AdbResult<String> {
-        let mut device_adb_stream = AdbTcpStream::connect_device(&self.serial)?;
-        let res = device_adb_stream
-            .execute_command(ShellCommand::new("getprop ro.product.cpu.abi".to_string()));
-        res.map(|s| s.strip_suffix("\n").unwrap_or(&s).to_string())
-    }
-
-    pub fn get_sdk(&self) -> AdbResult<String> {
-        let mut device_adb_stream = AdbTcpStream::connect_device(&self.serial)?;
-        let res = device_adb_stream.execute_command(ShellCommand::new(
-            "getprop ro.build.version.sdk".to_string(),
-        ));
-        res.map(|s| s.strip_suffix("\n").unwrap_or(&s).to_string())
+    pub fn input(&self, input: local_service::Input) -> AdbResult<()> {
+        self.execute_command_by_socket(input)
     }
 
     pub fn connect_adb_tcp_stream(&self) -> AdbResult<AdbTcpStream> {
@@ -215,6 +203,7 @@ impl Device {
         Ok(image)
     }
 
+    /// `adb -s <self.serial> <command>`
     pub fn execute_command_by_process(&self, command: &str) -> AdbResult<Vec<u8>> {
         let mut args = vec!["-s", self.serial.as_str()];
         args.extend(command.split_whitespace().collect::<Vec<&str>>());
@@ -245,9 +234,13 @@ mod test {
     use super::*;
     use crate::command::local_service;
 
+    fn device() -> Device {
+        connect("192.168.1.3:40919").unwrap()
+    }
+
     #[test]
     fn test_connect() -> AdbResult<()> {
-        let _device = connect("127.0.0.1:16384")?;
+        let _device = device();
         Ok(())
     }
 
@@ -255,7 +248,7 @@ mod test {
     fn test_screencap() {
         // by process cost: 938.7667ms, 3066595
         // by socket cost: 841.6327ms, 3069330
-        let device = connect("127.0.0.1:16384").unwrap();
+        let device = device();
 
         let start = Instant::now();
         let bytes = device

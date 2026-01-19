@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use ap_adb::command::local_service::Input;
 use image::math::Rect;
 
 use crate::app::App;
@@ -41,6 +42,43 @@ impl Controller {
 
     pub fn screen_size(&self) -> (u32, u32) {
         (self.width, self.height)
+    }
+
+    pub fn is_screen_on(&self) -> anyhow::Result<bool> {
+        let output = self.device.execute_command_by_socket(
+            ap_adb::command::local_service::ShellCommand::new(
+                "dumpsys power | grep mWakefulness".to_string(),
+            ),
+        )?;
+        // output should be like "mWakefulness=Awake" or "mWakefulness=Asleep"
+        Ok(output.contains("mWakefulness=Awake"))
+    }
+
+    pub fn ensure_screen_on(&self) -> anyhow::Result<()> {
+        if !self.is_screen_on()? {
+            self.device
+                .input(Input::Keyevent("KEYCODE_WAKEUP".to_string()))
+                .map_err(|err| anyhow::anyhow!("failed to wake up device: {err:?}"))?;
+        }
+        Ok(())
+    }
+
+    pub fn get_abi(&self) -> anyhow::Result<String> {
+        let res = self.device.execute_command_by_socket(
+            ap_adb::command::local_service::ShellCommand::new(
+                "getprop ro.product.cpu.abi".to_string(),
+            ),
+        )?;
+        Ok(res.strip_suffix("\n").unwrap_or(&res).to_string())
+    }
+
+    pub fn get_sdk(&self) -> anyhow::Result<String> {
+        let res = self.device.execute_command_by_socket(
+            ap_adb::command::local_service::ShellCommand::new(
+                "getprop ro.build.version.sdk".to_string(),
+            ),
+        )?;
+        Ok(res.strip_suffix("\n").unwrap_or(&res).to_string())
     }
 
     /// A scale factor from the device's resolution to 1920x1080
@@ -200,28 +238,46 @@ mod tests {
             .init();
     }
 
+    fn test_controller() -> Controller {
+        let device = ap_adb::connect("192.168.1.3:40919").unwrap();
+        let controller = Controller::from_device(device).unwrap();
+        controller
+    }
+
     #[test]
-    fn test_controller() {
+    fn test_capture() {
         init_tracing_subscriber();
 
-        let device = ap_adb::connect("127.0.0.1:16384").unwrap();
-        let controller = Controller::from_device(device).unwrap();
+        let controller = test_controller();
         let screen = controller.screencap().unwrap();
         println!("{}x{}", screen.width(), screen.height());
-        screen.save("test_screen.png").unwrap();
+        screen.save("cap.png").unwrap();
         let screen = controller.screencap_scaled().unwrap();
         println!("{}x{}", screen.width(), screen.height());
-        screen.save("test_screen_scaled.png").unwrap();
+        screen.save("cap_scaled.png").unwrap();
+    }
+
+    #[test]
+    fn test_screen_on() {
+        init_tracing_subscriber();
+
+        let controller = test_controller();
+        println!("is_screen_on: {}", controller.is_screen_on().unwrap());
+        controller.ensure_screen_on().unwrap();
+        let is_screen_on = controller.is_screen_on().unwrap();
+        println!("is_screen_on: {}", is_screen_on);
+        assert!(is_screen_on);
     }
 
     #[test]
     fn test_click() {
         init_tracing_subscriber();
 
-        let device = ap_adb::connect("127.0.0.1:16384").unwrap();
-        let controller = Controller::from_device(device).unwrap();
+        let controller = test_controller();
         controller.click(100, 100).unwrap();
+        thread::sleep(Duration::from_millis(50));
 
+        controller.click(100, 100).unwrap();
         thread::sleep(Duration::from_millis(50));
     }
 
@@ -229,8 +285,7 @@ mod tests {
     fn test_swipe() {
         init_tracing_subscriber();
 
-        let device = ap_adb::connect("127.0.0.1:16384").unwrap();
-        let controller = Controller::from_device(device).unwrap();
+        let controller = test_controller();
         controller
             .swipe((100, 100), (200, 200), Duration::from_millis(100), 0.5, 0.5)
             .unwrap();

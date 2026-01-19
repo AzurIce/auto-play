@@ -56,31 +56,36 @@ impl AdbCommand for ScreenCap {
     }
 }
 
-/// shell:input swipe x1 y1 x2 y2
-pub struct InputSwipe {
-    p1: (u32, u32),
-    p2: (i32, i32),
-    duration: Duration,
+pub enum Input {
+    /// shell:input swipe x1 y1 x2 y2 duration
+    Swipe {
+        p1: (u32, u32),
+        p2: (i32, i32),
+        duration: Duration,
+    },
+    /// .0 is keycode
+    ///
+    /// shell:input keyevent <keycode>
+    Keyevent(String),
 }
 
-impl InputSwipe {
-    pub fn new(p1: (u32, u32), p2: (i32, i32), duration: Duration) -> Self {
-        Self { p1, p2, duration }
-    }
-}
-
-impl AdbCommand for InputSwipe {
+impl AdbCommand for Input {
     type Output = ();
 
     fn raw_command(&self) -> String {
-        format!(
-            "shell:input swipe {} {} {} {} {}",
-            self.p1.0,
-            self.p1.1,
-            self.p2.0,
-            self.p2.1,
-            self.duration.as_millis()
-        )
+        match self {
+            Input::Swipe { p1, p2, duration } => {
+                format!(
+                    "shell:input swipe {} {} {} {} {}",
+                    p1.0,
+                    p1.1,
+                    p2.0,
+                    p2.1,
+                    duration.as_millis()
+                )
+            }
+            Input::Keyevent(keycode) => format!("shell:input keyevent {}", keycode),
+        }
     }
 
     fn handle_response(&self, stream: &mut AdbTcpStream) -> AdbResult<Self::Output> {
@@ -98,7 +103,7 @@ mod test {
     fn test_screencap() {
         let mut host = host::connect_default().unwrap();
         let res = host
-            .execute_local_command("127.0.0.1:16384".to_string(), ScreenCap)
+            .execute_local_command("127.0.0.1:16384".to_string(), ScreenCap::new())
             .unwrap();
         println!("{}", res.len())
     }
