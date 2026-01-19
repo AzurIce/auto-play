@@ -199,11 +199,17 @@ dependencies = [
  "ap-controller",
  "ap-cv",
  "image",
- "pyo3",
- "pyo3-build-config",
  "thiserror 2.0.17",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "auto-play-py"
+version = "0.1.0"
+dependencies = [
+ "auto-play",
+ "pyo3",
 ]
 
 [[package]]

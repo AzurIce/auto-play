@@ -16,7 +16,7 @@ classifiers = [
 dependencies = []
 
 [tool.maturin]
-python-source = "python"
+module-name = "auto_play.auto_play_py"
 
 [tool.uv]
 # Rebuild package when any rust files change
