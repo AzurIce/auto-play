@@ -1,17 +1,17 @@
-pub use ap_adb;
-pub use ap_controller;
-pub use ap_cv;
+pub use ap_adb as adb;
+pub use ap_controller as controller;
+pub use ap_cv as cv;
 
 // Re-export specific items users might need frequently
-pub use ap_adb::Device;
-pub use ap_controller::Controller;
+pub use adb::Device;
+pub use controller::Controller;
 pub use image::DynamicImage;
 
 // Export CV related options for matching
-pub use ap_cv::core::template_matching::MatchTemplateMethod;
-pub use ap_cv::matcher::MatcherOptions;
+pub use cv::core::template_matching::MatchTemplateMethod;
+pub use cv::matcher::MatcherOptions;
 
-use ap_cv::matcher::SingleMatcher;
+use cv::matcher::SingleMatcher;
 use std::time::Duration;
 
 /// The main entry point for automation tasks.
@@ -24,8 +24,8 @@ pub struct AutoPlay {
 
 impl AutoPlay {
     /// Connects to a device via ADB serial and initializes the automation runtime.
-    pub fn connect(serial: &str) -> anyhow::Result<Self> {
-        let device = ap_adb::connect(serial)?;
+    pub fn connect(serial: impl AsRef<str>) -> anyhow::Result<Self> {
+        let device = adb::connect(serial)?;
         Self::from_device(device)
     }
 
