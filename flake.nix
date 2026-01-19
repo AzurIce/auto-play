@@ -10,7 +10,6 @@
     ];
   };
 
-
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     crane.url = "github:ipetkov/crane";
@@ -19,13 +18,20 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flake-utils.url = "github:numtide/flake-utils";
-    nur.url = "github:nix-community/NUR";
   };
 
-  outputs = { self, nur, nixpkgs, rust-overlay, flake-utils, crane, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      nixpkgs,
+      rust-overlay,
+      flake-utils,
+      crane,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
-        overlays = [ (import rust-overlay) (nur.overlays) ];
+        overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs {
           inherit system overlays;
         };
@@ -35,27 +41,11 @@
             extensions = [ "rust-src" ];
           }
         );
-        puffin_viewer = pkgs.rustPlatform.buildRustPackage (finalAttrs: {
-          pname = "puffin_viewer";
-          version = "0.22.0";
-
-          cargoBuildFlags = [ "-p puffin_viewer" ];
-          cargoPatches = [ ./puffin-Cargo.lock.patch ];
-
-          src = pkgs.fetchFromGitHub {
-            owner = "EmbarkStudios";
-            repo = "puffin";
-            rev = "puffin_viewer-0.22.0";
-            hash = "sha256-ppE/f6jLRe6a1lfUQUlxTq/L29DwAD/a58u5utUJMoU=";
-          };
-
-          cargoHash = "sha256-zhijQ+9vVB4IL/t1+IGLAnvJka0AB1yJRWo/qEyUfx0=";
-        });
       in
       {
         devShells.default = craneLib.devShell {
-          buildInputs = with pkgs; [];
-          packages = [ puffin_viewer ];
+          buildInputs = [ ];
+          packages = [ ];
         };
       }
     );
