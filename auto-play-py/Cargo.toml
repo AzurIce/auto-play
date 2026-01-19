@@ -10,6 +10,7 @@ crate-type = ["rlib", "cdylib"]
 [dependencies]
 auto-play.workspace = true
 pyo3 = { version = "0.27.2" }
+image = { workspace = true } # 添加 image 依赖
 
 [features]
 # 默认用于构建 Python 扩展

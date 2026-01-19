@@ -21,4 +21,4 @@ module-name = "auto_play._auto_play"
 
 [tool.uv]
 # Rebuild package when any rust files change
-cache-keys = [{file = "pyproject.toml"}, {file = "rust/Cargo.toml"}, {file = "**/*.rs"}]
+cache-keys = [{file = "pyproject.toml"}, {file = "Cargo.toml"}, {file = "../Cargo.toml"}, {file = "../**/*.rs"}]
