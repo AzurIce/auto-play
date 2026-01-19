@@ -14,6 +14,30 @@ pub use cv::matcher::MatcherOptions;
 use cv::matcher::SingleMatcher;
 use std::time::Duration;
 
+/// A simple structure for demo purposes.
+#[derive(Debug, Clone)]
+pub struct FooStruct {
+    pub count: i32,
+}
+
+impl FooStruct {
+    pub fn new() -> Self {
+        Self { count: 0 }
+    }
+
+    pub fn increment(&mut self) {
+        self.count += 1;
+    }
+
+    pub fn add(&mut self, value: i32) {
+        self.count += value;
+    }
+    
+    pub fn get_count(&self) -> i32 {
+        self.count
+    }
+}
+
 /// The main entry point for automation tasks.
 ///
 /// `AutoPlay` integrates device control (via `ap-controller`) and computer vision (via `ap-cv`)

@@ -16,7 +16,8 @@ classifiers = [
 dependencies = []
 
 [tool.maturin]
-module-name = "auto_play.auto_play_py"
+# 这很重要：告诉 maturin 把编译出来的 `_auto_play.so` 放到 `auto_play` 文件夹里
+module-name = "auto_play._auto_play"
 
 [tool.uv]
 # Rebuild package when any rust files change

@@ -4,10 +4,19 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
-name = "auto_play_py"
+name = "_auto_play"
 crate-type = ["rlib", "cdylib"]
-
 
 [dependencies]
 auto-play.workspace = true
-pyo3 = { version = "0.27.2", features = ["extension-module", "abi3-py38"] }
+pyo3 = { version = "0.27.2" }
+
+[features]
+# 默认用于构建 Python 扩展
+default = ["extension-module"]
+
+# 当构建扩展模块时，启用 pyo3 的 extension-module 和 ABI3 支持
+extension-module = ["pyo3/extension-module", "pyo3/abi3-py38"]
+
+# 如果需要在测试中自动初始化 Python
+test-embed = ["pyo3/auto-initialize"]
