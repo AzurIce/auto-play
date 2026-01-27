@@ -181,9 +181,9 @@ impl Controller {
     }
 
     /// Get the raw screencap data in bytes
-    pub fn screencap_raw(&self) -> anyhow::Result<Vec<u8>> {
+    pub fn screencap_raw(&self) -> anyhow::Result<(u32, u32, Vec<u8>)> {
         self.device
-            .raw_screencap()
+            .screencap_raw()
             .map_err(|err| anyhow::anyhow!("failed to get raw screencap: {err:?}"))
     }
 

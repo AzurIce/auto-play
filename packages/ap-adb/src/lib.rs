@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use image::{DynamicImage, codecs::png::PngDecoder};
+use image::{DynamicImage, ImageBuffer, codecs::png::PngDecoder};
 use tracing::{error, trace};
 
 use utils::{ResponseStatus, read_payload_to_string, read_response_status};
@@ -180,27 +180,20 @@ impl Device {
     //     Ok((screen.width(), screen.height()))
     // }
 
-    /// Get the raw screencap data in bytes
-    pub fn raw_screencap(&self) -> AdbResult<Vec<u8>> {
-        // let bytes = self
-        //     .execute_command_by_process("exec-out screencap -p")
-        //     .expect("failed to screencap");
-
-        // INFO: Using tcp stream to communicate with adb server directly
-        // INFO: is about 100ms faster than using process
+    /// Get the raw screencap data in bytes (RGBA8)
+    pub fn screencap_raw(&self) -> AdbResult<(u32, u32, Vec<u8>)> {
         let bytes = self
-            .execute_command_by_socket(local_service::ScreenCap::new())
+            .execute_command_by_socket(local_service::ScreenCapRaw::new())
             .expect("failed to screencap");
         Ok(bytes)
     }
 
     /// Get the decoded screencap image
     pub fn screencap(&self) -> AdbResult<image::DynamicImage> {
-        let bytes = self.raw_screencap()?;
+        let (width, height, bytes) = self.screencap_raw()?;
 
-        let decoder = PngDecoder::new(Cursor::new(bytes)).map_err(AdbError::from)?;
-        let image = DynamicImage::from_decoder(decoder).map_err(AdbError::from)?;
-        Ok(image)
+        let image = ImageBuffer::from_raw(width, height, bytes).unwrap();
+        Ok(DynamicImage::ImageRgba8(image))
     }
 
     /// `adb -s <self.serial> <command>`
@@ -235,7 +228,7 @@ mod test {
     use crate::command::local_service;
 
     fn device() -> Device {
-        connect("192.168.1.3:40919").unwrap()
+        connect("127.0.0.1:16384").unwrap()
     }
 
     #[test]
@@ -246,19 +239,19 @@ mod test {
 
     #[test]
     fn test_screencap() {
-        // by process cost: 938.7667ms, 3066595
-        // by socket cost: 841.6327ms, 3069330
+        // by process cost: 282.9313ms, 3686416
+        // by socket cost: 184.0544ms, 3686404
         let device = device();
 
         let start = Instant::now();
         let bytes = device
-            .execute_command_by_process("exec-out screencap -p")
+            .execute_command_by_process("exec-out screencap")
             .unwrap();
         println!("by process cost: {:?}, {}", start.elapsed(), bytes.len());
 
         let start = Instant::now();
-        let bytes2 = device
-            .execute_command_by_socket(local_service::ScreenCap::new())
+        let (_, _, bytes2) = device
+            .execute_command_by_socket(local_service::ScreenCapRaw::new())
             .unwrap();
         println!("by socket cost: {:?}, {}", start.elapsed(), bytes2.len());
 
