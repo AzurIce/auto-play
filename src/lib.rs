@@ -1,7 +1,13 @@
 pub use ap_adb as adb;
 pub use ap_controller as controller;
-use ap_controller::android::Controller;
 pub use ap_cv as cv;
+
+// Re-export the Controller trait and concrete implementations
+pub use controller::Controller;
+pub use controller::AndroidController;
+
+#[cfg(feature = "windows")]
+pub use controller::WindowsController;
 
 // Re-export specific items users might need frequently
 pub use adb::Device;
@@ -18,67 +24,97 @@ use std::time::Duration;
 ///
 /// `AutoPlay` integrates device control (via `ap-controller`) and computer vision (via `ap-cv`)
 /// to provide a high-level API for game automation scripts.
-pub struct AutoPlay {
-    controller: Controller,
+///
+/// # Type Parameter
+/// - `T`: Any type that implements the [`Controller`] trait (e.g., `AndroidController`, `WindowsController`)
+///
+/// # Example
+/// ```ignore
+/// // For Android
+/// let controller = AndroidController::connect("192.168.1.3:40919")?;
+/// let auto_play = AutoPlay::new(controller);
+///
+/// // For Windows
+/// let controller = WindowsController::from_window_title("Game Window")?;
+/// let auto_play = AutoPlay::new(controller);
+///
+/// // Same API for both platforms
+/// auto_play.click_image(&template, &MatcherOptions::default())?;
+/// ```
+pub struct AutoPlay<T: Controller> {
+    controller: T,
 }
 
-impl AutoPlay {
-    /// Connects to a device via ADB serial and initializes the automation runtime.
-    pub fn connect(serial: impl AsRef<str>) -> anyhow::Result<Self> {
-        let device = adb::connect(serial)?;
-        Self::from_device(device)
+impl<T: Controller> AutoPlay<T> {
+    pub fn new(controller: T) -> Self {
+        Self { controller }
     }
 
-    /// Initializes `AutoPlay` from an existing ADB device connection.
-    pub fn from_device(device: Device) -> anyhow::Result<Self> {
-        let controller = Controller::from_device(device)?;
-        Ok(Self { controller })
-    }
-
-    /// Access the underlying [`Controller`] for low-level operations.
-    pub fn controller(&self) -> &Controller {
+    /// Access the underlying controller for low-level operations.
+    pub fn controller(&self) -> &T {
         &self.controller
     }
 
-    /// Captures the current screen content.
+    /// Access the underlying controller mutably for low-level operations.
+    pub fn controller_mut(&mut self) -> &mut T {
+        &mut self.controller
+    }
+
+    /// Get the screen size from the controller.
+    pub fn screen_size(&self) -> (u32, u32) {
+        self.controller.screen_size()
+    }
+
+    /// Get the scale factor from the controller.
+    pub fn scale_factor(&self) -> f32 {
+        self.controller.scale_factor()
+    }
+
+    /// Take a screenshot.
     pub fn screencap(&self) -> anyhow::Result<DynamicImage> {
         self.controller.screencap()
     }
 
-    /// Checks if the device screen is currently on.
-    pub fn is_screen_on(&self) -> anyhow::Result<bool> {
-        self.controller.is_screen_on()
+    /// Take a scaled screenshot (1080p).
+    pub fn screencap_scaled(&self) -> anyhow::Result<DynamicImage> {
+        self.controller.screencap_scaled()
     }
 
-    /// Wakes up the device if the screen is off.
-    pub fn ensure_screen_on(&self) -> anyhow::Result<()> {
-        self.controller.ensure_screen_on()
-    }
-
-    /// Gets the device ABI (e.g., arm64-v8a).
-    pub fn get_abi(&self) -> anyhow::Result<String> {
-        self.controller.get_abi()
-    }
-
-    /// Gets the device SDK version (e.g., 30 for Android 11).
-    pub fn get_sdk(&self) -> anyhow::Result<String> {
-        self.controller.get_sdk()
-    }
-
-    /// Performs a click at the specified coordinates (scaled to device resolution).
+    /// Click at the specified coordinates.
     pub fn click(&self, x: u32, y: u32) -> anyhow::Result<()> {
         self.controller.click(x, y)
     }
 
-    /// Performs a swipe operation.
+    /// Click at coordinates scaled from 1920x1080.
+    pub fn click_scaled(&self, x: u32, y: u32) -> anyhow::Result<()> {
+        self.controller.click_scaled(x, y)
+    }
+
+    /// Perform a swipe gesture.
     pub fn swipe(
         &self,
         start: (u32, u32),
         end: (i32, i32),
         duration: Duration,
+        slope_in: f32,
+        slope_out: f32,
     ) -> anyhow::Result<()> {
-        self.controller.swipe(start, end, duration, 0.5, 0.5)
+        self.controller.swipe(start, end, duration, slope_in, slope_out)
     }
+
+    /// Perform a swipe with coordinates scaled from 1920x1080.
+    pub fn swipe_scaled(
+        &self,
+        start: (u32, u32),
+        end: (i32, i32),
+        duration: Duration,
+        slope_in: f32,
+        slope_out: f32,
+    ) -> anyhow::Result<()> {
+        self.controller.swipe_scaled(start, end, duration, slope_in, slope_out)
+    }
+
+    // ===== Computer Vision Methods =====
 
     /// Searches for a template image on the current screen with custom options.
     ///
@@ -134,6 +170,25 @@ impl AutoPlay {
             }
         }
         Ok(false)
+    }
+
+    /// Wait for a template image to appear on screen.
+    ///
+    /// Returns the bounding rectangle if found within timeout, or `None`.
+    pub fn wait_for_image(
+        &self,
+        template: &DynamicImage,
+        options: &MatcherOptions,
+        timeout: Duration,
+    ) -> anyhow::Result<Option<image::math::Rect>> {
+        let start = std::time::Instant::now();
+        while start.elapsed() < timeout {
+            if let Some(rect) = self.find_image(template, options)? {
+                return Ok(Some(rect));
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        Ok(None)
     }
 }
 

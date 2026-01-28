@@ -20,6 +20,9 @@ color-print = "0.3.7"
 async-channel = "2.5.0"
 criterion = "0.7.0"
 
+[features]
+windows = ["ap-controller/windows"]
+
 [lib]
 name = "auto_play"
 path = "src/lib.rs"

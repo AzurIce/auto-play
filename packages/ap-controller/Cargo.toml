@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-windows = []
+windows = ["dep:windows-capture", "dep:enigo", "dep:parking_lot"]
 
 [dependencies]
 ap-adb.workspace = true
@@ -17,6 +17,11 @@ rand = "0.9.2"
 
 async-channel = "2.5.0"
 tempfile = "3.23.0"
+
+# Windows-specific dependencies
+windows-capture = { version = "1.5", optional = true }
+enigo = { version = "0.2", optional = true }
+parking_lot = { version = "0.12", optional = true }
 
 [dev-dependencies]
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
