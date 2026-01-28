@@ -3,6 +3,9 @@ name = "ap-controller"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+windows = []
+
 [dependencies]
 ap-adb.workspace = true
 anyhow.workspace = true

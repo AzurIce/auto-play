@@ -1,10 +1,10 @@
 pub use ap_adb as adb;
 pub use ap_controller as controller;
+use ap_controller::android::Controller;
 pub use ap_cv as cv;
 
 // Re-export specific items users might need frequently
 pub use adb::Device;
-pub use controller::Controller;
 pub use image::DynamicImage;
 
 // Export CV related options for matching

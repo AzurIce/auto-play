@@ -12,7 +12,7 @@ use tracing::{debug, info, trace};
 
 use ap_adb::{Device, command::local_service::ShellCommand, utils::execute_adb_command};
 
-const MAATOUCH: &[u8] = include_bytes!("../../resources/maatouch");
+const MAATOUCH: &[u8] = include_bytes!("./maatouch");
 
 use super::App;
 
