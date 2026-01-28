@@ -29,7 +29,7 @@ impl Controller {
     pub fn from_device(device: ap_adb::Device) -> anyhow::Result<Self> {
         let screen = device.screencap()?;
         let (width, height) = (screen.width(), screen.height());
-        let maa_touch = app::maatouch::MaaTouch::init(&device)?;
+        let maa_touch = app::maatouch::MaaTouch::build(&device)?;
         let maa_touch = Arc::new(Mutex::new(maa_touch));
         Ok(Self {
             device,

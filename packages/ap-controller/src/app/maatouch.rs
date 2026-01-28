@@ -126,12 +126,10 @@ impl App for MaaTouch {
         Ok(())
     }
 
-    fn init(device: &Device) -> anyhow::Result<Self>
+    fn build(device: &Device) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
-        Self::prepare(device)?;
-
         info!(
             "{}",
             cformat!("<dim>[Minitouch]: spawning maatouch...</dim>")
@@ -372,7 +370,7 @@ mod test {
         info!("test_maatoucher");
         // mumu
         let device = connect("127.0.0.1:16384").unwrap();
-        let mut toucher = MaaTouch::init(&device).unwrap();
+        let mut toucher = MaaTouch::build(&device).unwrap();
         // toucher.click(10, 10).unwrap();
         // toucher.click(100, 100).unwrap();
         toucher.click(822, 762).unwrap();
@@ -390,7 +388,7 @@ mod test {
         init_tracing_subscriber();
         // let device = connect("127.0.0.1:16384").unwrap();
         let device = connect("emulator-5554").unwrap();
-        let mut toucher = MaaTouch::init(&device).unwrap();
+        let mut toucher = MaaTouch::build(&device).unwrap();
         toucher
             .swipe(
                 (1780, 400),

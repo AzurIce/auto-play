@@ -8,15 +8,18 @@ use ap_adb::Device;
 pub trait App {
     fn check(device: &Device) -> anyhow::Result<()>;
     fn push(device: &Device) -> anyhow::Result<()>;
-    fn prepare(device: &Device) -> anyhow::Result<()> {
+    fn build(device: &Device) -> anyhow::Result<Self>
+    where
+        Self: Sized;
+
+    fn init(device: &Device) -> anyhow::Result<Self>
+    where
+        Self: Sized,
+    {
         if Self::check(device).is_err() {
             Self::push(device)?;
             Self::check(device)?;
         }
-        Ok(())
+        Self::build(device)
     }
-
-    fn init(device: &Device) -> anyhow::Result<Self>
-    where
-        Self: Sized;
 }
