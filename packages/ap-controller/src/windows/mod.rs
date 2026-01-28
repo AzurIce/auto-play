@@ -242,8 +242,8 @@ impl WindowsController {
         self.capture_state.lock().error.clone()
     }
 
-    /// Get the current window rect from the OS (always up-to-date).
-    fn window_rect(&self) -> anyhow::Result<(i32, i32)> {
+    /// Get the current window position (left, top) from the OS (always up-to-date).
+    pub fn window_position(&self) -> anyhow::Result<(i32, i32)> {
         let rect = self
             .window
             .rect()
@@ -253,7 +253,7 @@ impl WindowsController {
 
     /// Convert local coordinates to screen coordinates
     fn local_to_screen(&self, x: u32, y: u32) -> anyhow::Result<(i32, i32)> {
-        let (ox, oy) = self.window_rect()?;
+        let (ox, oy) = self.window_position()?;
         Ok((x as i32 + ox, y as i32 + oy))
     }
 
@@ -342,7 +342,7 @@ impl Controller for WindowsController {
     ) -> anyhow::Result<()> {
         const SWIPE_DELAY_MS: u32 = 5;
 
-        let (ox, oy) = self.window_rect()?;
+        let (ox, oy) = self.window_position()?;
         let (start_screen_x, start_screen_y) = (start.0 as i32 + ox, start.1 as i32 + oy);
 
         let mut enigo = self.enigo.lock();
@@ -455,7 +455,7 @@ mod tests {
         init_tracing_subscriber();
 
         let controller = WindowsController::from_window_title("Endfield").unwrap();
-        controller.click(100, 100).unwrap();
+        controller.click(340, 136).unwrap();
         // thread::sleep(Duration::from_millis(100));
         // controller.click(200, 200).unwrap();
     }

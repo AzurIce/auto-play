@@ -16,8 +16,10 @@ pub struct ShellCommand {
 }
 
 impl ShellCommand {
-    pub fn new(command: String) -> Self {
-        Self { command }
+    pub fn new(command: impl AsRef<str>) -> Self {
+        Self {
+            command: command.as_ref().to_string(),
+        }
     }
 }
 

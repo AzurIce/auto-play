@@ -6,6 +6,7 @@ use std::{
 use ap_adb::command::local_service::Input;
 
 use app::App;
+use regex::Regex;
 pub mod app;
 
 use crate::Controller;
@@ -27,7 +28,7 @@ impl AndroidController {
     pub fn from_device(device: ap_adb::Device) -> anyhow::Result<Self> {
         let screen = device.screencap()?;
         let (width, height) = (screen.width(), screen.height());
-        let maa_touch = app::maatouch::MaaTouch::build(&device)?;
+        let maa_touch = app::maatouch::MaaTouch::init(&device)?;
         let maa_touch = Arc::new(Mutex::new(maa_touch));
         Ok(Self {
             device,
@@ -77,14 +78,57 @@ impl AndroidController {
 
     pub fn press_home(&self) -> anyhow::Result<()> {
         self.device
-            .execute_command_by_process("shell input keyevent HOME")?;
+            .execute_command_by_socket(ap_adb::command::local_service::Input::Keyevent(
+                "HOME".to_string(),
+            ))?;
         Ok(())
     }
 
     pub fn press_esc(&self) -> anyhow::Result<()> {
         self.device
-            .execute_command_by_process("shell input keyevent 111")?;
+            .execute_command_by_socket(ap_adb::command::local_service::Input::Keyevent(
+                "111".to_string(),
+            ))?;
         Ok(())
+    }
+
+    pub fn launch_app(&self, intent: impl AsRef<str>) -> anyhow::Result<()> {
+        let intent = intent.as_ref();
+        self.device.execute_command_by_socket(
+            ap_adb::command::local_service::ShellCommand::new(if intent.find("/").is_some() {
+                format!("am start -n {intent}")
+            } else {
+                format!("monkey -p {intent} 1")
+            }),
+        )?;
+        Ok(())
+    }
+
+    pub fn stop_app(&self, intent: impl AsRef<str>) -> anyhow::Result<()> {
+        let intent = intent.as_ref();
+        self.device.execute_command_by_socket(
+            ap_adb::command::local_service::ShellCommand::new(format!("am force-stop {intent}")),
+        )?;
+        Ok(())
+    }
+
+    /// `(<package>, <activity>)`
+    pub fn current_focus(&self) -> anyhow::Result<Option<(String, String)>> {
+        let res = self.device.execute_command_by_socket(
+            ap_adb::command::local_service::ShellCommand::new(
+                "dumpsys window | grep mCurrentFocus",
+            ),
+        )?;
+        let re =
+            Regex::new(r"mCurrentFocus=Window\{.*\s+(?P<package>[^\s/]+)/(?P<activity>[^\s\}]+)\}")
+                .unwrap();
+        let res = re
+            .captures(&res)
+            .ok_or(anyhow::anyhow!("Failed to parse current focus"))?;
+        Ok(res
+            .name("package")
+            .zip(res.name("activity"))
+            .map(|(p, a)| (p.as_str().to_string(), a.as_str().to_string())))
     }
 
     /// Get the underlying ADB device
@@ -137,7 +181,7 @@ mod tests {
     use crate::tests::init_tracing_subscriber;
 
     fn test_controller() -> AndroidController {
-        let device = ap_adb::connect("192.168.1.3:40919").unwrap();
+        let device = ap_adb::connect("W9F0220326002559").unwrap();
         AndroidController::from_device(device).unwrap()
     }
 
@@ -188,5 +232,14 @@ mod tests {
             .unwrap();
 
         thread::sleep(Duration::from_millis(50));
+    }
+
+    #[test]
+    fn test_current_focus() {
+        init_tracing_subscriber();
+
+        let controller = test_controller();
+        let res = controller.current_focus().unwrap();
+        println!("Current focus: {:?}", res);
     }
 }
