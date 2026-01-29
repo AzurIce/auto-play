@@ -1,5 +1,6 @@
-use std::time::Duration;
+use std::{any::Any, time::Duration};
 
+pub use enigo::Key;
 use image::math::Rect;
 
 pub mod android;
@@ -20,7 +21,7 @@ pub const DEFAULT_HEIGHT: u32 = 1080;
 ///
 /// This trait abstracts common operations across different platforms (Android, Windows, etc.),
 /// allowing for platform-agnostic automation code.
-pub trait Controller {
+pub trait ControllerTrait {
     // ===== Screen Information =====
 
     /// Get the screen/window size as (width, height)
@@ -140,6 +141,8 @@ pub trait Controller {
         );
         self.swipe(start, end, duration, slope_in, slope_out)
     }
+
+    fn press(&self, key: Key) -> anyhow::Result<()>;
 }
 
 #[cfg(test)]
@@ -154,5 +157,56 @@ mod tests {
                     .unwrap(),
             )
             .try_init();
+    }
+}
+
+pub trait AnyControllerTrait: Any + Send + ControllerTrait {}
+impl<T: ControllerTrait + Any + Send> AnyControllerTrait for T {}
+
+pub struct Controller {
+    inner: Box<dyn AnyControllerTrait>,
+}
+
+impl ControllerTrait for Controller {
+    fn screen_size(&self) -> (u32, u32) {
+        self.inner.screen_size()
+    }
+
+    fn screencap_raw(&self) -> anyhow::Result<(u32, u32, Vec<u8>)> {
+        self.inner.screencap_raw()
+    }
+
+    fn screencap(&self) -> anyhow::Result<image::DynamicImage> {
+        self.inner.screencap()
+    }
+
+    fn click(&self, x: u32, y: u32) -> anyhow::Result<()> {
+        self.inner.click(x, y)
+    }
+
+    fn swipe(
+        &self,
+        start: (u32, u32),
+        end: (i32, i32),
+        duration: Duration,
+        slope_in: f32,
+        slope_out: f32,
+    ) -> anyhow::Result<()> {
+        self.inner.swipe(start, end, duration, slope_in, slope_out)
+    }
+
+    fn press(&self, key: Key) -> anyhow::Result<()> {
+        self.inner.press(key)
+    }
+}
+
+impl Controller {
+    pub fn new<T: ControllerTrait + Any + Send>(inner: T) -> Self {
+        Self {
+            inner: Box::new(inner),
+        }
+    }
+    pub fn downcast_ref<T: ControllerTrait + 'static>(&self) -> Option<&T> {
+        (self.inner.as_ref() as &dyn Any).downcast_ref::<T>()
     }
 }

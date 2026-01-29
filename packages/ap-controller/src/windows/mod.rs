@@ -1,6 +1,6 @@
 use std::{sync::Arc, thread, time::Duration};
 
-use enigo::{Axis, Button, Coordinate, Enigo, Mouse, Settings};
+use enigo::{Axis, Button, Coordinate, Enigo, Keyboard, Mouse, Settings};
 use parking_lot::Mutex;
 use tracing::info;
 use windows_capture::{
@@ -14,7 +14,7 @@ use windows_capture::{
     window::Window,
 };
 
-use crate::Controller;
+use crate::ControllerTrait;
 
 /// Frame data captured from the window
 struct FrameData {
@@ -284,7 +284,7 @@ impl WindowsController {
     }
 }
 
-impl Controller for WindowsController {
+impl ControllerTrait for WindowsController {
     fn screen_size(&self) -> (u32, u32) {
         self.get_latest_frame()
             .map(|f| (f.width, f.height))
@@ -392,6 +392,13 @@ impl Controller for WindowsController {
             .map_err(|e| anyhow::anyhow!("Failed to release mouse button: {e}"))?;
 
         Ok(())
+    }
+
+    fn press(&self, key: enigo::Key) -> anyhow::Result<()> {
+        let mut enigo = self.enigo.lock();
+        enigo
+            .key(key, enigo::Direction::Press)
+            .map_err(|e| anyhow::anyhow!("Failed to press key: {e}"))
     }
 }
 

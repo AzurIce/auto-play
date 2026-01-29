@@ -3,14 +3,14 @@
 //! Provides functionality for communicating with Android devices
 use std::{
     collections::BTreeMap,
-    io::{Cursor, Read, Write},
+    io::{Read, Write},
     net::{Ipv4Addr, SocketAddrV4, TcpStream},
     process::Command,
     sync::Mutex,
     time::Duration,
 };
 
-use image::{DynamicImage, ImageBuffer, codecs::png::PngDecoder};
+use image::{DynamicImage, ImageBuffer};
 use tracing::{error, trace};
 
 use utils::{ResponseStatus, read_payload_to_string, read_response_status};

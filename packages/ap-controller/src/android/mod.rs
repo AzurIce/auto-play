@@ -9,7 +9,7 @@ use app::App;
 use regex::Regex;
 pub mod app;
 
-use crate::Controller;
+use crate::ControllerTrait;
 
 /// Android controller structure
 pub struct AndroidController {
@@ -137,7 +137,7 @@ impl AndroidController {
     }
 }
 
-impl Controller for AndroidController {
+impl ControllerTrait for AndroidController {
     fn screen_size(&self) -> (u32, u32) {
         (self.width, self.height)
     }
@@ -170,6 +170,28 @@ impl Controller for AndroidController {
             .lock()
             .unwrap()
             .swipe(start, end, duration, slope_in, slope_out)
+    }
+    fn press(&self, key: enigo::Key) -> anyhow::Result<()> {
+        self.device()
+            .execute_command_by_socket(ap_adb::command::local_service::Input::Keyevent(
+                key.event_num()
+                    .ok_or(anyhow::anyhow!("not supported key"))?
+                    .to_string(),
+            ))
+            .map_err(|err| anyhow::anyhow!("failed to get press key: {err:?}"))
+    }
+}
+
+trait AdbKeyEvent {
+    fn event_num(&self) -> Option<u32>;
+}
+
+impl AdbKeyEvent for enigo::Key {
+    fn event_num(&self) -> Option<u32> {
+        Some(match self {
+            Self::Escape => 111,
+            _ => return None,
+        })
     }
 }
 
