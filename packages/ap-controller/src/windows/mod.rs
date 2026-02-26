@@ -1,8 +1,12 @@
+pub mod ocr;
+
 use std::{sync::Arc, thread, time::Duration};
 
 use enigo::{Axis, Button, Coordinate, Enigo, Keyboard, Mouse, Settings};
 use parking_lot::Mutex;
 use tracing::info;
+use windows::Win32::Foundation::HWND;
+use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
 use windows_capture::{
     capture::{Context, GraphicsCaptureApiHandler},
     frame::Frame,
@@ -265,6 +269,65 @@ impl WindowsController {
 
     // ===== Windows-specific methods =====
 
+    /// Get the HWND of the target window
+    fn hwnd(&self) -> HWND {
+        HWND(self.window.as_raw_hwnd())
+    }
+
+    /// Bring the target window to the foreground
+    pub fn focus(&self) -> anyhow::Result<()> {
+        unsafe {
+            let _ = SetForegroundWindow(self.hwnd());
+        }
+        thread::sleep(Duration::from_millis(100));
+        Ok(())
+    }
+
+    /// Click by focusing the window first, then using SendInput (enigo).
+    /// This is needed for games like FF14 that only accept input when focused.
+    pub fn focus_click(&self, x: u32, y: u32) -> anyhow::Result<()> {
+        self.focus()?;
+
+        let (screen_x, screen_y) = self.local_to_screen(x, y)?;
+        let mut enigo = self.enigo.lock();
+
+        enigo
+            .move_mouse(screen_x, screen_y, Coordinate::Abs)
+            .map_err(|e| anyhow::anyhow!("Failed to move mouse: {e}"))?;
+
+        thread::sleep(Duration::from_millis(50));
+
+        enigo
+            .button(Button::Left, enigo::Direction::Press)
+            .map_err(|e| anyhow::anyhow!("Failed to press: {e}"))?;
+
+        thread::sleep(Duration::from_millis(30));
+
+        enigo
+            .button(Button::Left, enigo::Direction::Release)
+            .map_err(|e| anyhow::anyhow!("Failed to release: {e}"))?;
+
+        Ok(())
+    }
+
+    /// Press a key by focusing the window first, then using SendInput (enigo).
+    pub fn focus_press(&self, key: enigo::Key) -> anyhow::Result<()> {
+        self.focus()?;
+
+        let mut enigo = self.enigo.lock();
+        enigo
+            .key(key, enigo::Direction::Press)
+            .map_err(|e| anyhow::anyhow!("Failed to press key: {e}"))?;
+
+        thread::sleep(Duration::from_millis(30));
+
+        enigo
+            .key(key, enigo::Direction::Release)
+            .map_err(|e| anyhow::anyhow!("Failed to release key: {e}"))?;
+
+        Ok(())
+    }
+
     /// Scroll the mouse wheel
     pub fn scroll(&self, x: u32, y: u32, delta: i32) -> anyhow::Result<()> {
         let (screen_x, screen_y) = self.local_to_screen(x, y)?;
@@ -447,14 +510,24 @@ mod tests {
         let screen = controller.screencap().unwrap();
         println!("Screenshot: {}x{}", screen.width(), screen.height());
         screen.save("windows_cap.png").unwrap();
+    }
 
-        let screen_scaled = controller.screencap_scaled().unwrap();
-        println!(
-            "Scaled: {}x{}",
-            screen_scaled.width(),
-            screen_scaled.height()
-        );
-        screen_scaled.save("windows_cap_scaled.png").unwrap();
+    #[test]
+    fn test_ff14_screencap() {
+        init_tracing_subscriber();
+
+        let controller = WindowsController::from_window_title("最终幻想XIV").unwrap();
+        println!("Connected to window: {}", controller.window_title());
+
+        // Wait a bit for frames to arrive
+        thread::sleep(Duration::from_millis(200));
+
+        let screen = controller.screencap().unwrap();
+        println!("Screenshot: {}x{}", screen.width(), screen.height());
+
+        // Save as JPG to keep file size under 5MB
+        screen.save("ff14_cap.jpg").unwrap();
+        println!("Saved ff14_cap.jpg");
     }
 
     #[test]
@@ -463,8 +536,6 @@ mod tests {
 
         let controller = WindowsController::from_window_title("Endfield").unwrap();
         controller.click(340, 136).unwrap();
-        // thread::sleep(Duration::from_millis(100));
-        // controller.click(200, 200).unwrap();
     }
 
     #[test]

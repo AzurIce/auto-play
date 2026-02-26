@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use ap_controller::ControllerTrait;
 use serde::{Deserialize, Serialize};
-use typetag;
+
+use ap_controller::ControllerTrait;
 
 #[typetag::serde]
 pub trait Action {
@@ -101,29 +101,5 @@ impl Action for LaunchAppAction {
             .controller_ref::<AndroidController>()
             .ok_or_else(|| anyhow::anyhow!("not an android controller"))?;
         android.launch_app(&self.package)
-    }
-}
-
-// Duration serialization module for TOML format (delay_sec = f32)
-mod duration_secs_f32_option {
-    use serde::{Deserialize, Deserializer, Serializer};
-    use std::time::Duration;
-
-    pub fn serialize<S>(duration: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match duration {
-            Some(d) => serializer.serialize_some(&d.as_secs_f32()),
-            None => serializer.serialize_none(),
-        }
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let secs: Option<f32> = Option::deserialize(deserializer)?;
-        Ok(secs.map(Duration::from_secs_f32))
     }
 }

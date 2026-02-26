@@ -215,9 +215,6 @@ mod tests {
         let screen = controller.screencap().unwrap();
         println!("{}x{}", screen.width(), screen.height());
         screen.save("cap.png").unwrap();
-        let screen = controller.screencap_scaled().unwrap();
-        println!("{}x{}", screen.width(), screen.height());
-        screen.save("cap_scaled.png").unwrap();
     }
 
     #[test]

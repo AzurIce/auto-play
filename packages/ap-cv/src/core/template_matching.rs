@@ -333,10 +333,6 @@ impl Matcher {
     }
 
     fn create_new_bind_group(&self) -> BindGroup {
-        // println!("input buffer size: {:?}", self.input_buffer.as_ref().unwrap().size());
-        // println!("template buffer size: {:?}", self.template_buffer.as_ref().unwrap().size());
-        // println!("result buffer size: {:?}", self.result_buffer.as_ref().unwrap().size());
-        // println!("staging buffer size: {:?}", self.staging_buffer.as_ref().unwrap().size());
         self.ctx.device.create_bind_group(&BindGroupDescriptor {
             label: Some("Matcher BindGroup"),
             layout: &self.bind_group_layout,
@@ -681,31 +677,6 @@ mod tests {
 
     use super::*;
     use std::{error::Error, fs, path::PathBuf, time::Instant};
-
-    // #[test]
-    // fn foo() -> Result<(), Box<dyn Error>> {
-    //     let image = image::open("./assets/in_battle.png")?;
-    //     let template = image::open("./assets/battle_deploy-card-cost1.png")?;
-    //     fs::create_dir_all("./assets/output")?;
-
-    //     let image = image.to_luma32f();
-    //     save_luma32f(&image, "./assets/output/grey.png", false);
-    //     let image = ImageBuffer::from_fn(image.width(), image.height(), |x, y| {
-    //         let mut sum = 0.0;
-    //         let mut cnt = 0;
-    //         for i in x..(x + template.width()).min(image.width()) {
-    //             for j in y..(y + template.height()).min(image.height()) {
-    //                 sum += image.get_pixel(i, j).0[0];
-    //                 cnt += 1;
-    //             }
-    //         }
-    //         // println!("{sum}/{cnt}");
-    //         // println!("{} {}", image.get_pixel(x, y).0[0], sum / cnt as f32);
-    //         Luma([(sum / cnt as f32)])
-    //     });
-    //     save_luma32f(&image, "./assets/output/avg.png", false);
-    //     Ok(())
-    // }
 
     fn init_profiling() {
         #[cfg(feature = "profiling")]

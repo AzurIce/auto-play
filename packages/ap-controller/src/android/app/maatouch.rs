@@ -16,20 +16,12 @@ const MAATOUCH: &[u8] = include_bytes!("./maatouch");
 
 use super::App;
 
-pub enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
 /// After initialized, hold a child-stdin to write commands to maatouch
 /// If disconnected during using, it should be reconstructed
 pub struct MaaTouch {
     child: Child,
     child_in: ChildStdin,
     state: MaaTouchState,
-    // cmd_tx: async_channel::Sender<Cmd>,
 }
 
 impl Drop for MaaTouch {
@@ -76,16 +68,6 @@ impl App for MaaTouch {
     }
 
     fn push(device: &Device) -> anyhow::Result<()> {
-        // let abi = device
-        //     .get_abi()
-        //     .map_err(|err| anyhow::anyhow!("get abi failed: {err}"))?;
-        // let maatouch_bytes = match abi.as_str() {
-        //     "armeabi-v7a" => MINITOUCH_ARM,
-        //     "arm64-v8a" => MINITOUCH_ARM_64,
-        //     "x86" => MINITOUCH_X86,
-        //     "x86_64" => MINITOUCH_X86_64,
-        //     _ => anyhow::bail!("unsupported abi: {}", abi),
-        // };
         let mut tmpfile = NamedTempFile::new().context("failed to create tempfile")?;
         tmpfile
             .write_all(MAATOUCH)
@@ -122,7 +104,6 @@ impl App for MaaTouch {
         let res = execute_adb_command(&device.serial(), "shell chmod +x /data/local/tmp/maatouch")
             .map_err(|err| anyhow::anyhow!("maatouch push failed: {:?}", err))?;
         info!("{:?}", String::from_utf8(res));
-        // sleep(Duration::from_millis(200));
         Ok(())
     }
 
@@ -156,10 +137,7 @@ impl App for MaaTouch {
             .take()
             .ok_or(anyhow::anyhow!("cannot get stdout of maatouch"))?;
 
-        // let (cmd_tx, cmd_rx) = async_channel::unbounded::<Cmd>();
-
         let mut state = MaaTouchState::default();
-        // read info
         debug!("reading maatouch info...");
         let mut reader = std::io::BufReader::new(child_out);
         loop {
@@ -175,7 +153,6 @@ impl App for MaaTouch {
                 Ok(sz) => {
                     trace!("readed {sz} len: {buf:?}");
                     if sz == 0 {
-                        // println!("readed Ok(0)");
                         continue;
                     }
                     buf = buf
@@ -183,7 +160,7 @@ impl App for MaaTouch {
                         .strip_suffix("\n")
                         .unwrap()
                         .to_string();
-                    println!("readed info: {}", buf);
+                    trace!("readed info: {}", buf);
                     if buf.starts_with('^') {
                         let params = &buf.split(' ').skip(1).collect::<Vec<&str>>();
                         let max_contact = u32::from_str_radix(params[0], 10).unwrap();
@@ -206,11 +183,6 @@ impl App for MaaTouch {
                             max_y,
                             max_pressure,
                         };
-                        // maatouch_state.flip_xy = flip_xy;
-                        // maatouch_state.max_contact = max_contact;
-                        // maatouch_state.max_x = max_x;
-                        // maatouch_state.max_y = max_y;
-                        // maatouch_state.max_pressure = max_pressure;
                         info!(
                             "{}",
                             cformat!(
@@ -271,7 +243,6 @@ impl MaaTouch {
         } else {
             (x, y)
         };
-        // let y = self.state.max_y.saturating_add_signed(-(y as i32));
         self.write_command(format!("d {contact} {x} {y} {pressure}").as_str())
     }
 
@@ -282,7 +253,6 @@ impl MaaTouch {
         } else {
             (x, y)
         };
-        // let y = self.state.max_y as i32 - y;
         self.write_command(format!("m {contact} {x} {y} {pressure}").as_str())
     }
 
@@ -291,7 +261,6 @@ impl MaaTouch {
     }
 
     pub fn wait(&mut self, duration: Duration) -> anyhow::Result<()> {
-        // self.write_command(format!("w {}", duration.as_millis()).as_str())
         thread::sleep(duration);
         Ok(())
     }
@@ -334,18 +303,14 @@ impl MaaTouch {
             let progress =
                 cubic_spline(slope_in, slope_out, t as f32 / duration.as_millis() as f32);
             let progress = progress.min(1.0).max(0.0);
-            // info!("{}", progress);
-            // println!("{progress}");
             let cur_x = lerp(start.0 as f32, end.0 as f32, progress) as i32;
             let cur_y = lerp(start.1 as f32, end.1 as f32, progress) as i32;
-            // println!("{cur_x} {cur_y}");
             self.mv(0, cur_x as i32, cur_y as i32, self.state.max_pressure)?;
             self.commit()?;
             self.wait(Duration::from_millis(SWIPE_DELAY_MS as u64))?;
             thread::sleep(Duration::from_millis(SWIPE_DELAY_MS as u64));
         }
 
-        // self.mv(0, end.0, end.1, 0)?;
         self.wait(Duration::from_millis(200))?;
         self.commit()?;
         thread::sleep(Duration::from_millis(200));
@@ -368,25 +333,15 @@ mod test {
         init_tracing_subscriber();
 
         info!("test_maatoucher");
-        // mumu
         let device = connect("127.0.0.1:16384").unwrap();
         let mut toucher = MaaTouch::build(&device).unwrap();
-        // toucher.click(10, 10).unwrap();
-        // toucher.click(100, 100).unwrap();
         toucher.click(822, 762).unwrap();
         thread::sleep(Duration::from_secs_f32(2.0));
-
-        // // leidian
-        // let device = connect("emulator-5554").unwrap();
-        // let mut toucher = MaaTouch::init(&device).unwrap();
-        // toucher.click(822, 762).unwrap();
-        // thread::sleep(Duration::from_secs_f32(2.0));
     }
 
     #[test]
     fn test_slowly_swipe() {
         init_tracing_subscriber();
-        // let device = connect("127.0.0.1:16384").unwrap();
         let device = connect("emulator-5554").unwrap();
         let mut toucher = MaaTouch::build(&device).unwrap();
         toucher

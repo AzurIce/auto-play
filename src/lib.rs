@@ -72,31 +72,15 @@ impl AutoPlay {
         self.controller.screencap()
     }
 
-    pub fn screencap_scaled(&self) -> anyhow::Result<DynamicImage> {
-        self.controller.screencap()
-    }
-
     pub fn click(&self, x: u32, y: u32) -> anyhow::Result<()> {
         self.controller.click(x, y)
     }
 
-    pub fn click_scaled(&self, x: u32, y: u32) -> anyhow::Result<()> {
-        self.controller.click(x, y)
+    pub fn press(&self, key: controller::Key) -> anyhow::Result<()> {
+        self.controller.press(key)
     }
 
     pub fn swipe(
-        &self,
-        start: (u32, u32),
-        end: (i32, i32),
-        duration: Duration,
-        slope_in: f32,
-        slope_out: f32,
-    ) -> anyhow::Result<()> {
-        self.controller
-            .swipe(start, end, duration, slope_in, slope_out)
-    }
-
-    pub fn swipe_scaled(
         &self,
         start: (u32, u32),
         end: (i32, i32),
@@ -171,9 +155,4 @@ impl AutoPlay {
         }
         Ok(None)
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
 }

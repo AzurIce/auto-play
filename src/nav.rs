@@ -1,12 +1,6 @@
-use std::{collections::HashMap, hash::RandomState};
+use std::collections::HashMap;
 
-use ap_controller::ControllerTrait;
-use petgraph::{
-    algo::{all_simple_paths, astar, dijkstra},
-    graph::NodeIndex,
-    visit::IntoNodeReferences,
-    Graph,
-};
+use petgraph::{algo::astar, graph::NodeIndex, visit::IntoNodeReferences, Graph};
 
 use crate::AutoPlay;
 
@@ -88,6 +82,7 @@ impl NavGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ap_controller::ControllerTrait;
 
     struct DummyController;
 
@@ -104,18 +99,22 @@ mod tests {
             todo!()
         }
 
-        fn click(&self, x: u32, y: u32) -> anyhow::Result<()> {
+        fn click(&self, _x: u32, _y: u32) -> anyhow::Result<()> {
             todo!()
         }
 
         fn swipe(
             &self,
-            start: (u32, u32),
-            end: (i32, i32),
-            duration: std::time::Duration,
-            slope_in: f32,
-            slope_out: f32,
+            _start: (u32, u32),
+            _end: (i32, i32),
+            _duration: std::time::Duration,
+            _slope_in: f32,
+            _slope_out: f32,
         ) -> anyhow::Result<()> {
+            todo!()
+        }
+
+        fn press(&self, _key: ap_controller::Key) -> anyhow::Result<()> {
             todo!()
         }
     }
@@ -151,6 +150,6 @@ mod tests {
                 Ok(())
             }),
         );
-        graph.nav(&ap, "start", "end");
+        let _ = graph.nav(&ap, "start", "end");
     }
 }
